@@ -37,12 +37,14 @@ import MonitoringPage, {
 import NotificationEscalationPage from "./components/NotificationEscalationPage"
 import ReportsPage from "./components/ReportsPage"
 import InfrastructureHealthPage from "./components/InfrastructureHealthPage"
-import { AccessProvider } from "./lib/useAccess"
+import { AccessProvider, type SessionUser } from "./lib/useAccess"
+import { UNAUTHORIZED_EVENT } from "./lib/api"
+import { logout, restoreSession } from "./lib/auth"
 import { useSynraStore } from "./lib/useSynraStore"
-import { SAMPLE_users, can, roleCapabilities } from "./seed"
+import { can, roleCapabilities } from "./seed"
 
 type Theme = "dark" | "light"
-const AUTH_STORAGE_KEY = "synra-auth-user-id"
+const LEGACY_AUTH_STORAGE_KEY = "synra-auth-user-id"
 const READ_NOTIFICATIONS_KEY = "synra-read-notification-ids"
 const monitoringPages: MonitoringName[] = [
   "Infrastruktur",
@@ -462,9 +464,8 @@ function MobileNavigation({
 export default function App() {
   const { read } = useSynraStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(() =>
-    localStorage.getItem(AUTH_STORAGE_KEY),
-  )
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null)
+  const [sessionChecked, setSessionChecked] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => {
     return localStorage.getItem("synra-theme") as Theme | null ?? "dark"
   })
@@ -495,6 +496,18 @@ export default function App() {
   )
 
   useEffect(() => {
+    // Sisa sesi mock versi lama tidak dipakai lagi.
+    localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+    restoreSession()
+      .then(setCurrentUser)
+      .finally(() => setSessionChecked(true))
+
+    const onUnauthorized = () => setCurrentUser(null)
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+  }, [])
+
+  useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem("synra-theme", theme)
   }, [theme])
@@ -510,9 +523,6 @@ export default function App() {
 
   const closeToast = useCallback(() => setToastVisible(false), [])
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
-  const currentUser = SAMPLE_users.find(
-    (user) => user.email === currentUserEmail,
-  )
   const capabilities = currentUser
     ? roleCapabilities.find((item) => item.role === currentUser.role)
     : undefined
@@ -522,8 +532,11 @@ export default function App() {
           ...group,
           items: group.items.filter(
             (item) =>
-              item.label !== "Administrasi" ||
-              can(currentUser.role, "config"),
+              (item.label !== "Administrasi" ||
+                can(currentUser.role, "config")) &&
+              // Audit log hanya dapat dibaca ADMIN dan AUDITOR (dibatasi juga di backend).
+              (item.label !== "Audit Trail" ||
+                ["ADMIN", "AUDITOR"].includes(currentUser.backendRole)),
           ),
         }))
         .filter((group) => group.items.length > 0)
@@ -579,12 +592,14 @@ export default function App() {
       }
     : undefined
 
+  // Hindari kilasan halaman login saat token tersimpan sedang diverifikasi.
+  if (!sessionChecked) return null
+
   if (!currentUser) {
     return (
       <LoginPage
-        onSuccess={(email) => {
-          localStorage.setItem(AUTH_STORAGE_KEY, email)
-          setCurrentUserEmail(email)
+        onSuccess={(user) => {
+          setCurrentUser(user)
           navigateTo("Pusat Kendali")
         }}
       />
@@ -865,8 +880,8 @@ export default function App() {
         onClose={() => setLogoutOpen(false)}
         onConfirm={() => {
           setLogoutOpen(false)
-          localStorage.removeItem(AUTH_STORAGE_KEY)
-          setCurrentUserEmail(null)
+          logout()
+          setCurrentUser(null)
         }}
       />
 

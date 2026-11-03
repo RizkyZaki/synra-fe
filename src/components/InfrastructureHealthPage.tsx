@@ -1,4 +1,4 @@
-import { GlassCard, StatusBadge } from "./ui"
+import { GlassCard, ScopeNotice, StatusBadge } from "./ui"
 
 type HealthStatus = "Baik" | "Peringatan" | "Kritis"
 
@@ -29,6 +29,7 @@ const statusTone = {
 export default function InfrastructureHealthPage() {
   return (
     <div className="health-page">
+      <ScopeNotice>Health score tidak termasuk cakupan SYNRA. Angka di halaman ini adalah ilustrasi.</ScopeNotice>
       <GlassCard className="health-score-summary">
         <div>
           <span className="pretext">SKOR TOTAL</span>

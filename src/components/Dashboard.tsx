@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { alertsForRole, kpiCards } from "../seed"
 import { useAccess } from "../lib/useAccess"
-import { useSynraStore } from "../lib/useSynraStore"
-import { GlassCard, KpiCard, SeverityBadge } from "./ui"
+import { useSynraStore, useUtilization } from "../lib/useSynraStore"
+import { formatDateTime } from "../lib/backend"
+import { ApiErrorBanner, GlassCard, KpiCard, SeverityBadge } from "./ui"
 
 type Period = "24 jam" | "7 hari" | "30 hari"
 type Metric = "cpu" | "memory" | "disk"
@@ -40,15 +40,107 @@ const donutColors = [
 ]
 
 const kpiDestinations: Record<string, string> = {
-  health: "Kesehatan Infrastruktur",
   online: "Inventaris Aset",
+  stale: "Inventaris Aset",
   alerts: "Alert & Insiden",
   critical: "Alert & Insiden",
-  expiring: "Lisensi Software",
+  availability: "Availability & Performa",
+  licenses: "Lisensi Software",
+}
+
+type Tone = "good" | "warning" | "high" | "critical"
+
+/**
+ * Kartu KPI. Aset/alert/stale/availability dari backend (/dashboard/summary, /dashboard/availability).
+ * Lisensi masih dari data Lifecycle di FE (contoh) karena backend lisensi belum ada.
+ */
+function useKpiCards() {
+  const { helpers, api, read } = useSynraStore()
+  const k = helpers.dashboardKpi()
+  const sev = api.summary?.openAlertsBySeverity
+  const pct = k.totalAssets ? Math.round((k.online / k.totalAssets) * 100) : 0
+
+  const licenses = read("lifecycle").filter((item) => item.type === "licenses")
+  const activeLicenses = licenses.filter(
+    (item) => item.status === "Aktif" && helpers.daysUntil(item.expiry) >= 0,
+  )
+  const expiring = activeLicenses
+    .filter((item) => helpers.daysUntil(item.expiry) <= 30)
+    .sort((a, b) => helpers.daysUntil(a.expiry) - helpers.daysUntil(b.expiry))
+
+  return [
+    {
+      id: "online",
+      label: "Aset online",
+      value: `${k.online}/${k.totalAssets}`,
+      tag: `${pct}%`,
+      tone: (pct >= 80 ? "good" : "warning") as Tone,
+      description: `${k.warning} warning · ${api.summary?.critical ?? 0} critical`,
+      note: `${k.totalAssets - k.online} perlu perhatian`,
+    },
+    {
+      id: "licenses",
+      label: "Lisensi aktif",
+      value: `${activeLicenses.length}/${licenses.length}`,
+      tag: "H-30",
+      tone: (expiring.length > 0 ? "warning" : "good") as Tone,
+      description: `${expiring.length} habis ≤ 30 hari`,
+      note:
+        expiring.length === 0
+          ? "Tidak ada yang mendekati"
+          : expiring.length === 1
+            ? expiring[0].name
+            : `${expiring[0].name} +${expiring.length - 1}`,
+    },
+    {
+      id: "alerts",
+      label: "Alert terbuka",
+      value: String(k.openAlerts),
+      tag: "Aktif",
+      tone: (k.critical > 0 ? "critical" : k.openAlerts > 0 ? "warning" : "good") as Tone,
+      description: "Belum ditutup",
+      // Ringkas agar muat di kartu; rincian per severity ada di halaman Alert.
+      note: sev
+        ? `${sev.CRITICAL + sev.HIGH} tinggi · ${sev.MEDIUM + sev.LOW + sev.INFO} lainnya`
+        : "—",
+    },
+    {
+      id: "critical",
+      label: "Critical",
+      value: String(k.critical),
+      tag: "P1",
+      tone: (k.critical > 0 ? "critical" : "good") as Tone,
+      description: "Perlu tindakan segera",
+      note: "Belum ditutup",
+    },
+    {
+      id: "stale",
+      label: "Host stale",
+      value: String(k.stale),
+      tag: "5 mnt",
+      tone: (k.stale > 0 ? "critical" : "good") as Tone,
+      description: "Tidak mengirim data",
+      note: api.summary?.lastIngestAt
+        ? `Ingest ${formatDateTime(api.summary.lastIngestAt).split(", ")[1] ?? ""}`
+        : "Belum ada ingest",
+    },
+    {
+      id: "availability",
+      label: "Availability 24 jam",
+      value: k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`,
+      tag: "Avg",
+      tone: (k.availabilityPct === null || k.availabilityPct >= 99
+        ? "good"
+        : k.availabilityPct >= 95
+          ? "warning"
+          : "critical") as Tone,
+      description: "Semua aset aktif",
+      note: "Data per menit",
+    },
+  ]
 }
 
 function UtilizationChart() {
-  const { helpers } = useSynraStore()
   const [period, setPeriod] = useState<Period>("24 jam")
   const [hovered, setHovered] = useState<number | null>(null)
   const [visible, setVisible] = useState<Record<Metric, boolean>>({
@@ -56,7 +148,7 @@ function UtilizationChart() {
     memory: true,
     disk: true,
   })
-  const data = helpers.utilizationSeries(period)
+  const { data, error } = useUtilization(period)
   const width = 760
   const height = 260
   const left = 42
@@ -112,6 +204,10 @@ function UtilizationChart() {
         ))}
       </div>
 
+      {error && <p className="small-copy text-muted">{error}</p>}
+      {!error && data.length === 0 && (
+        <p className="small-copy text-muted">Belum ada data metrik pada periode ini.</p>
+      )}
       <div className="chart-shell">
         <svg
           viewBox={`0 0 ${width} ${height}`}
@@ -139,7 +235,7 @@ function UtilizationChart() {
           {visible.disk &&
             data.map((point, index) => (
               <rect
-                key={`disk-${point.label}`}
+                key={`disk-${index}`}
                 x={x(index) - Math.min(12, step * 0.24)}
                 y={y(point.disk)}
                 width={Math.min(24, step * 0.48)}
@@ -173,7 +269,7 @@ function UtilizationChart() {
           )}
 
           {data.map((point, index) => (
-            <g key={`point-${point.label}`}>
+            <g key={`point-${index}`}>
               <text
                 x={x(index)}
                 y={height - 16}
@@ -292,37 +388,36 @@ function AssetDistribution() {
   )
 }
 
-function HealthBreakdown() {
-  const { helpers } = useSynraStore()
+function AvailabilityBreakdown() {
+  const { api } = useSynraStore()
+  const rows = [...(api.availability?.assets ?? [])].sort(
+    (a, b) => (a.pct ?? 101) - (b.pct ?? 101),
+  )
+  const tone = (pct: number | null) =>
+    pct === null ? "risk" : pct >= 99.5 ? "healthy" : pct >= 99 ? "good" : pct >= 95 ? "warning" : "risk"
   return (
     <GlassCard className="dashboard-card health-breakdown">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">HEALTH SCORE</span>
-          <h3 className="title-h3">Rincian skor kesehatan</h3>
+          <span className="pretext">AVAILABILITY</span>
+          <h3 className="title-h3">Availability per aset (24 jam)</h3>
         </div>
       </div>
       <div className="health-list">
-        {helpers.healthDimensions.map((dimension) => (
-          <div className="health-row" key={dimension.key}>
+        {rows.length === 0 && <p className="small-copy text-muted">Belum ada data.</p>}
+        {rows.map((row) => (
+          <div className="health-row" key={row.assetId}>
             <div className="health-row__label">
-              <span className="small-copy">{dimension.key}</span>
+              <span className="small-copy">{row.hostname}</span>
               <span className="label text-muted">
-                Bobot {dimension.weight}% · Skor {dimension.score}
+                {row.bpd} ·{" "}
+                {row.pct === null ? "belum ada data" : `${row.pct.toLocaleString("id-ID")}%`}
               </span>
             </div>
             <div className="health-track">
               <span
-                className={`health-fill health-fill--${
-                  dimension.score >= 90
-                    ? "healthy"
-                    : dimension.score >= 80
-                      ? "good"
-                      : dimension.score >= 70
-                        ? "warning"
-                        : "risk"
-                }`}
-                style={{ width: `${dimension.score}%` }}
+                className={`health-fill health-fill--${tone(row.pct)}`}
+                style={{ width: `${row.pct ?? 0}%` }}
               />
             </div>
           </div>
@@ -335,53 +430,42 @@ function HealthBreakdown() {
 function LocationStatus() {
   const { read } = useSynraStore()
   const assets = read("assets")
-  const backup = assets.find((asset) => asset.name === "BACKUP-MASTER01")
-  const drcDatabase = assets.find((asset) => asset.name === "CBS-DB-DRC01")
-  const locations = ["DC Serpong", "DRC Surabaya"] as const
+  const bpds = [...new Set(assets.map((asset) => asset.location))].sort()
 
   return (
     <GlassCard className="dashboard-card location-status">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">LOKASI</span>
-          <h3 className="title-h3">Status DC vs DRC</h3>
+          <span className="pretext">BPD</span>
+          <h3 className="title-h3">Status per BPD</h3>
         </div>
       </div>
       <div className="location-status__grid">
-        {locations.map((location) => {
-          const locationAssets = assets.filter(
-            (asset) => asset.location === location,
-          )
-          const online = locationAssets.filter(
-            (asset) => asset.status === "Online",
-          ).length
+        {bpds.map((bpd) => {
+          const bpdAssets = assets.filter((asset) => asset.location === bpd)
+          const count = (status: string) =>
+            bpdAssets.filter((asset) => asset.backendStatus === status).length
           return (
-            <div className="location-mini" key={location}>
+            <div className="location-mini" key={bpd}>
               <div className="location-mini__title">
-                <strong className="small-copy">{location}</strong>
+                <strong className="small-copy">{bpd}</strong>
               </div>
               <dl>
                 <div>
                   <dt>Daring</dt>
                   <dd>
-                    {online}/{locationAssets.length}
+                    {count("ONLINE")}/{bpdAssets.length}
                   </dd>
                 </div>
                 <div>
-                  <dt>Replication lag</dt>
+                  <dt>Warning / critical</dt>
                   <dd>
-                    {location === "DRC Surabaya"
-                      ? (drcDatabase?.note.match(/lag ([^•]+)/)?.[1] ?? "—")
-                      : "—"}
+                    {count("WARNING")} / {count("CRITICAL")}
                   </dd>
                 </div>
                 <div>
-                  <dt>Backup terakhir</dt>
-                  <dd>
-                    {location === "DRC Surabaya"
-                      ? (backup?.note.split("last success ")[1] ?? "—")
-                      : "—"}
-                  </dd>
+                  <dt>Stale</dt>
+                  <dd>{count("STALE")}</dd>
                 </div>
               </dl>
             </div>
@@ -393,10 +477,10 @@ function LocationStatus() {
 }
 
 function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const { user } = useAccess()
-  const priorityAlerts = [...alertsForRole(user.role)].sort(
-    (a, b) => severityRank[b.severity] - severityRank[a.severity],
-  )
+  const { read } = useSynraStore()
+  const priorityAlerts = read("alerts")
+    .filter((alert) => alert.status !== "Ditutup" && alert.conditionActive !== false)
+    .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
   const listRef = useRef<HTMLDivElement>(null)
   const scrollTimerRef = useRef<number | null>(null)
   const [atBottom, setAtBottom] = useState(true)
@@ -461,7 +545,7 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
                   <SeverityBadge severity={alert.severity} />
                 </div>
                 <div>
-                  <h4 className="strong">{alert.title}</h4>
+                  <h4 className="strong">{alert.name}</h4>
                   <p className="small-copy">{alert.note}</p>
                 </div>
                 <button
@@ -477,7 +561,7 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
       ) : (
         <div className="priority-empty">
           <strong className="small-copy">
-            Tidak ada alert untuk area Anda
+            Tidak ada alert aktif
           </strong>
           <span className="label text-muted">Semua aman untuk saat ini</span>
         </div>
@@ -503,16 +587,8 @@ function ExecutiveSummary() {
     .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
     .slice(0, 3)
   const assets = read("assets")
-  const lifecycleCritical = read("lifecycle").filter(
-    (item) => helpers.lifecycleSeverity(helpers.daysUntil(item.expiry)) === "Critical",
-  ).length
-  const pending = read("requests").filter(
-    (request) => request.status === "Menunggu",
-  ).length
-  const readiness = (location: "DC Serpong" | "DRC Surabaya") => {
-    const locationAssets = assets.filter((asset) => asset.location === location)
-    return `${locationAssets.filter((asset) => asset.status === "Online").length}/${locationAssets.length}`
-  }
+  const k = helpers.dashboardKpi()
+  const online = assets.filter((asset) => asset.status === "Online").length
 
   return (
     <GlassCard className="executive-dashboard">
@@ -530,18 +606,20 @@ function ExecutiveSummary() {
           ))}
         </div>
         <div>
-          <span className="label text-muted">Kesiapan DC / DRC</span>
+          <span className="label text-muted">Aset daring</span>
           <strong className="small-copy">
-            {readiness("DC Serpong")} · {readiness("DRC Surabaya")}
+            {online}/{assets.length}
           </strong>
         </div>
         <div>
-          <span className="label text-muted">Siklus hidup kritis</span>
-          <strong className="bigcopy">{lifecycleCritical}</strong>
+          <span className="label text-muted">Host stale</span>
+          <strong className="bigcopy">{k.stale}</strong>
         </div>
         <div>
-          <span className="label text-muted">Pengajuan menunggu</span>
-          <strong className="bigcopy">{pending}</strong>
+          <span className="label text-muted">Availability 24 jam</span>
+          <strong className="bigcopy">
+            {k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`}
+          </strong>
         </div>
       </div>
     </GlassCard>
@@ -572,48 +650,6 @@ function AlertFunnel() {
   )
 }
 
-function ExpiryList() {
-  const { read, helpers } = useSynraStore()
-  const items = useMemo(
-    () =>
-      [...read("lifecycle")]
-        .sort(
-          (a, b) => helpers.daysUntil(a.expiry) - helpers.daysUntil(b.expiry),
-        )
-        .slice(0, 5),
-    [helpers, read],
-  )
-
-  return (
-    <GlassCard className="dashboard-card expiry-list">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="pretext">LIFECYCLE</span>
-          <h3 className="title-h3">Kedaluwarsa terdekat</h3>
-        </div>
-      </div>
-      <div className="compact-list">
-        {items.map((item) => {
-          const days = helpers.daysUntil(item.expiry)
-          const severity = helpers.lifecycleSeverity(days)
-          return (
-            <div className="compact-list__row" key={item.id}>
-              <div>
-                <strong className="small-copy">{item.name}</strong>
-                <span className="label text-muted">{item.location}</span>
-              </div>
-              <span className="small-copy">H-{days}</span>
-              <SeverityBadge
-                severity={severity === "Expired" ? "Critical" : severity}
-              />
-            </div>
-          )
-        })}
-      </div>
-    </GlassCard>
-  )
-}
-
 function RecentActivity() {
   const { read } = useSynraStore()
   const entries = [...read("audit")]
@@ -636,7 +672,7 @@ function RecentActivity() {
                 <strong>{entry.user}</strong> · {entry.action}
               </p>
               <span className="label text-muted">
-                {entry.detail} ·{" "}
+                {entry.detail !== "—" && `${entry.detail} · `}
                 {new Intl.DateTimeFormat("id-ID", {
                   day: "2-digit",
                   month: "short",
@@ -658,9 +694,16 @@ export default function Dashboard({
   onNavigate: (page: string) => void
 }) {
   const { capabilities } = useAccess()
+  const { error } = useSynraStore()
+  const kpiCards = useKpiCards()
 
   return (
     <div className="dashboard-grid">
+      {error && (
+        <div style={{ gridColumn: "1 / -1" }}>
+          <ApiErrorBanner message={error} />
+        </div>
+      )}
       <div className="dashboard-kpis">
         {kpiCards.map((card) => (
           <KpiCard
@@ -680,9 +723,9 @@ export default function Dashboard({
       <UtilizationChart />
       <InsightPanel onNavigate={onNavigate} />
       <AssetDistribution />
-      <HealthBreakdown />
+      <AvailabilityBreakdown />
       <LocationStatus />
-      <ExpiryList />
+      <AlertFunnel />
       <RecentActivity />
     </div>
   )
