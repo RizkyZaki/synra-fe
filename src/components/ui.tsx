@@ -497,3 +497,27 @@ export function ErrorState({ onRetry }: { onRetry: () => void }) {
     </div>
   )
 }
+
+/** Penanda fitur yang belum didukung backend SYNRA (di luar cakupan pilot); data di halaman adalah contoh. */
+export function ScopeNotice({ children }: { children?: ReactNode }) {
+  return (
+    <div className="scope-notice" role="note">
+      <strong className="small-copy">Belum tersedia di backend SYNRA</strong>
+      <span className="label">
+        {children ??
+          "Fitur ini di luar cakupan pilot. Data yang tampil di halaman ini adalah contoh dan tidak tersimpan di server."}
+      </span>
+    </div>
+  )
+}
+
+/** Banner status koneksi backend (error pemuatan data). */
+export function ApiErrorBanner({ message }: { message: string }) {
+  if (!message) return null
+  return (
+    <div className="scope-notice scope-notice--danger" role="alert">
+      <strong className="small-copy">Gagal memuat data</strong>
+      <span className="label">{message}</span>
+    </div>
+  )
+}
