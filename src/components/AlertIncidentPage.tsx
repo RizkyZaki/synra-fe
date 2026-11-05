@@ -1,16 +1,11 @@
 import { useMemo, useState } from "react"
-import { createAuditEntry } from "../lib/audit"
 import { restrictedAction, useAccess } from "../lib/useAccess"
-import { useSynraStore } from "../lib/useSynraStore"
-import type {
-  AlertItem,
-  AlertStatus,
-  Asset,
-  AuditEntry,
-  Severity,
-} from "../lib/synraDomain"
+import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
+import { ApiError } from "../lib/api"
+import { ALERT_EVENT_LABEL, STATUS_TO_FE, formatDateTime } from "../lib/backend"
+import type { AlertItem, AlertStatus } from "../lib/synraDomain"
 import {
-  ConfirmDialog,
+  ApiErrorBanner,
   DataTable,
   FormField,
   GlassCard,
@@ -45,16 +40,6 @@ function alertStatusTone(status: AlertStatus) {
   return "neutral" as const
 }
 
-interface EwSCandidate {
-  name: string
-  type: string
-  location: string
-  pic: string
-  severity: Severity
-  note: string
-  assetName: string
-}
-
 function WorkflowForm({
   title,
   requireEvidence = false,
@@ -64,7 +49,7 @@ function WorkflowForm({
   title: string
   requireEvidence?: boolean
   allowed: boolean
-  onSubmit: (note: string, evidence: string) => void
+  onSubmit: (note: string, evidence: string) => Promise<void> | void
 }) {
   const [note, setNote] = useState("")
   const [evidence, setEvidence] = useState("")
@@ -83,7 +68,8 @@ function WorkflowForm({
           setError("Bukti remediasi wajib diisi sebelum review.")
           return
         }
-        onSubmit(note.trim(), evidence.trim())
+        setError("")
+        void onSubmit(note.trim(), evidence.trim())
       }}
     >
       <FormField label="Catatan">
@@ -126,20 +112,18 @@ export default function AlertIncidentPage({
   selectedId: string | null
   onSelectedIdChange: (id: string | null) => void
 }) {
-  const { read, add, update, helpers } = useSynraStore()
-  const { user, can } = useAccess()
+  const { read, actions, error } = useSynraStore()
+  const { can } = useAccess()
   const canEdit = can("edit")
   const canApprove = can("approve")
   const canConfig = can("config")
   const alerts = read("alerts")
-  const assets = read("assets")
-  const lifecycle = read("lifecycle")
-  const rules = read("rules")
   const [severityFilter, setSeverityFilter] = useState("Semua")
   const [statusFilter, setStatusFilter] = useState("Semua")
-  const [confirmClose, setConfirmClose] = useState(false)
   const [toast, setToast] = useState("")
+  const [busy, setBusy] = useState(false)
   const selected = alerts.find((alert) => alert.id === selectedId) ?? null
+  const events = useAlertDetail(selected?.apiId, selected?.status)
 
   const filtered = useMemo(
     () =>
@@ -152,262 +136,41 @@ export default function AlertIncidentPage({
     [alerts, severityFilter, statusFilter],
   )
 
-  const logAudit = (action: string, target: string, detail: string) =>
-    add(
-      "audit",
-      createAuditEntry(read("audit"), user, action, target, detail),
-    )
-
-  const changeStatus = (
+  /** Perubahan status dikirim ke backend; backend memvalidasi alur, role, dan mencatat audit. */
+  const changeStatus = async (
     alert: AlertItem,
-    status: AlertStatus,
+    action: AlertTransition,
+    target: AlertStatus,
     note?: string,
     evidence?: string,
   ) => {
-    const approvalTransition =
-      alert.status === "Menunggu Review" &&
-      (status === "Ditutup" || status === "Dalam Penanganan")
-    if (approvalTransition ? !canApprove : !canEdit) return
-
-    const detail = [
-      `Status: ${alert.status} → ${status}`,
-      note,
-      evidence ? `Bukti: ${evidence}` : "",
-    ]
-      .filter(Boolean)
-      .join(" · ")
-    update(
-      "alerts",
-      (item) => item.id === alert.id,
-      {
-        status,
-        note:
-          note || evidence
-            ? `${alert.note} • ${[note, evidence].filter(Boolean).join(" • ")}`
-            : alert.note,
-      },
-    )
-    logAudit("Status alert diperbarui", alert.id, detail)
-    setToast(`Alert dipindahkan ke ${status}`)
+    if (!alert.apiId) return
+    setBusy(true)
+    try {
+      await actions.transitionAlert(alert.apiId, action, { note, evidence })
+      setToast(`Alert dipindahkan ke ${statusLabels[target]}`)
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : "Gagal mengubah status alert")
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const evaluateEws = () => {
+  const evaluateEws = async () => {
     if (!canConfig) return
-
-    const rule = (name: string) =>
-      rules.find((item) => item.name === name)?.value ?? 0
-    const candidates: EwSCandidate[] = []
-    const addCandidate = (
-      asset: Asset,
-      name: string,
-      severity: Severity,
-      note: string,
-      type = asset.type,
-    ) =>
-      candidates.push({
-        name,
-        type,
-        location: asset.location,
-        pic: asset.pic,
-        severity,
-        note,
-        assetName: asset.name,
-      })
-
-    assets.forEach((asset) => {
-      if (asset.cpu > rule("CPU")) {
-        addCandidate(
-          asset,
-          `CPU melewati threshold ${rule("CPU")}%`,
-          "High",
-          `${asset.name} • CPU ${asset.cpu}%`,
-        )
-      }
-      if (asset.memory > rule("Memory")) {
-        addCandidate(
-          asset,
-          `Memory melewati threshold ${rule("Memory")}%`,
-          "High",
-          `${asset.name} • Memory ${asset.memory}%`,
-        )
-      }
-      if (asset.disk > rule("Disk EWS")) {
-        addCandidate(
-          asset,
-          `Disk melewati threshold ${rule("Disk EWS")}%`,
-          helpers.diskSeverity(asset.disk),
-          `${asset.name} • Disk ${asset.disk}%`,
-        )
-      }
-      if (
-        asset.type === "Database" &&
-        asset.disk > rule("DB Tablespace")
-      ) {
-        addCandidate(
-          asset,
-          "Tablespace database mendekati penuh",
-          helpers.diskSeverity(asset.disk),
-          `${asset.name} • Tablespace ${asset.disk}%`,
-          "Database",
-        )
-      }
-      if (
-        asset.type === "Backup" &&
-        (asset.status !== "Online" ||
-          asset.note.toLowerCase().includes("gagal"))
-      ) {
-        addCandidate(
-          asset,
-          "Backup terjadwal gagal",
-          "Critical",
-          `${asset.name} • ${asset.note}`,
-          "Backup",
-        )
-      }
-      const lag = Number(asset.note.match(/lag (\d+)/i)?.[1] ?? 0)
-      if (lag > rule("Replication lag")) {
-        addCandidate(
-          asset,
-          "Replication lag melewati threshold",
-          "High",
-          `${asset.name} • lag ${lag} detik`,
-          "Database",
-        )
-      }
-      if (
-        helpers.daysUntil(asset.expiry) <= rule("OS EOL") &&
-        asset.type === "Server"
-      ) {
-        addCandidate(
-          asset,
-          "Lifecycle OS mendekati akhir dukungan",
-          "High",
-          `${asset.name} • expiry ${asset.expiry}`,
-          "Server",
-        )
-      }
-      if (
-        asset.type === "Database" &&
-        asset.growth > rule("DB Growth abnormal")
-      ) {
-        addCandidate(
-          asset,
-          "Pertumbuhan database di atas baseline",
-          "High",
-          `${asset.name} • growth ${asset.growth}% baseline`,
-          "Database",
-        )
-      }
-      if (asset.status === "Offline") {
-        addCandidate(
-          asset,
-          "Service terdeteksi down",
-          "Critical",
-          `${asset.name} • status Offline`,
-        )
-      }
-      const capacityDays = helpers.forecastDays(
-        asset.capacity,
-        asset.used,
-        asset.growth,
+    setBusy(true)
+    try {
+      const result = await actions.evaluateAlerts()
+      setToast(
+        result.created > 0
+          ? `${result.created} alert baru dibuat`
+          : "Tidak ada alert baru; duplikat terbuka dilewati",
       )
-      if (
-        capacityDays !== null &&
-        capacityDays <= rule("Capacity forecast")
-      ) {
-        addCandidate(
-          asset,
-          "Forecast kapasitas melewati batas EWS",
-          "High",
-          `${asset.name} • prediksi penuh ${capacityDays} hari`,
-        )
-      }
-    })
-
-    lifecycle.forEach((item) => {
-      const days = helpers.daysUntil(item.expiry)
-      const limit =
-        item.type === "certificates"
-          ? rule("Certificate expiry")
-          : item.type === "licenses"
-            ? rule("License expiry")
-            : -1
-      if (limit >= 0 && days <= limit) {
-        candidates.push({
-          name:
-            item.type === "certificates"
-              ? `Sertifikat ${item.name} H-${days}`
-              : `Perpanjangan ${item.name} H-${days}`,
-          type: item.type === "certificates" ? "Sertifikat" : "Lisensi",
-          location: item.location,
-          pic: item.pic,
-          severity:
-            helpers.lifecycleSeverity(days) === "Expired"
-              ? "Critical"
-              : (helpers.lifecycleSeverity(days) as Severity),
-          note: `${item.name} • expiry ${item.expiry}`,
-          assetName: item.name,
-        })
-      }
-    })
-
-    const openAlerts = read("alerts").filter(
-      (alert) => alert.status !== "Ditutup",
-    )
-    const uniqueCandidates = candidates.filter(
-      (candidate, index) =>
-        candidates.findIndex(
-          (item) =>
-            item.name === candidate.name &&
-            item.assetName === candidate.assetName,
-        ) === index &&
-        !openAlerts.some(
-          (alert) =>
-            alert.name === candidate.name ||
-            (alert.type === candidate.type &&
-              (alert.note.includes(candidate.assetName) ||
-                alert.name.includes(candidate.assetName))),
-        ),
-    )
-    let nextNumber =
-      Math.max(
-        0,
-        ...read("alerts").map(
-          (alert) => Number(alert.id.replace(/\D/g, "")) || 0,
-        ),
-      ) + 1
-    const createdAudits: AuditEntry[] = []
-
-    uniqueCandidates.forEach((candidate) => {
-      const alert: AlertItem = {
-        id: `ALT-${String(nextNumber).padStart(3, "0")}`,
-        name: candidate.name,
-        type: candidate.type,
-        location: candidate.location,
-        pic: candidate.pic,
-        status: "Baru",
-        severity: candidate.severity,
-        note: candidate.note,
-        createdAt: new Date().toISOString(),
-      }
-      nextNumber += 1
-      add("alerts", alert)
-      const auditEntry = createAuditEntry(
-        [...read("audit"), ...createdAudits],
-        user,
-        "EWS dievaluasi",
-        alert.id,
-        "Alert baru dibuat",
-      )
-      createdAudits.push(auditEntry)
-      add("audit", auditEntry)
-    })
-
-    setToast(
-      uniqueCandidates.length > 0
-        ? `${uniqueCandidates.length} alert baru dibuat`
-        : "Tidak ada alert baru; duplikat terbuka dilewati",
-    )
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : "Evaluasi gagal")
+    } finally {
+      setBusy(false)
+    }
   }
 
   const columns: DataTableColumn<AlertItem>[] = [
@@ -415,10 +178,17 @@ export default function AlertIncidentPage({
     {
       key: "name",
       header: "Alert",
-      render: (alert) => <strong>{alert.name}</strong>,
+      render: (alert) => (
+        <>
+          <strong>{alert.name}</strong>
+          {alert.conditionActive === false && alert.status !== "Ditutup" && (
+            <span className="recovered-tag">kondisi pulih</span>
+          )}
+        </>
+      ),
     },
     { key: "type", header: "Jenis", render: (alert) => alert.type },
-    { key: "location", header: "Lokasi", render: (alert) => alert.location },
+    { key: "location", header: "Host", render: (alert) => alert.location },
     { key: "pic", header: "PIC", render: (alert) => alert.pic },
     {
       key: "severity",
@@ -443,11 +213,6 @@ export default function AlertIncidentPage({
   ]
 
   if (selected) {
-    const timeline = read("audit")
-      .filter((entry) => entry.target === selected.id)
-      .sort(
-        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
-      )
     return (
       <div className="alert-detail">
         <div className="asset-detail__header">
@@ -460,7 +225,22 @@ export default function AlertIncidentPage({
           <div>
             <span className="pretext">{selected.id}</span>
             <h3 className="title-h3">{selected.name}</h3>
-            <p className="bodycopy text-muted">{selected.note}</p>
+            <p className="bodycopy text-muted">
+              {selected.hostname} · {selected.component} · PIC {selected.pic}
+            </p>
+            <p className="bodycopy text-muted">
+              Nilai terakhir {selected.value?.toLocaleString("id-ID")} (batas{" "}
+              {selected.threshold?.toLocaleString("id-ID")}) · terdeteksi {selected.createdAt}
+              {selected.conditionActive === false && " · kondisi sudah normal kembali"}
+            </p>
+            <p className="bodycopy">
+              <strong>Rekomendasi:</strong> {selected.recommendation}
+            </p>
+            {selected.closeNote && (
+              <p className="bodycopy">
+                <strong>Catatan penutupan:</strong> {selected.closeNote}
+              </p>
+            )}
           </div>
           <SeverityBadge severity={selected.severity} />
         </GlassCard>
@@ -472,16 +252,18 @@ export default function AlertIncidentPage({
               <h3 className="title-h3">Riwayat Penanganan</h3>
             </div>
             <div className="timeline-list">
-              <div>
-                <strong className="small-copy">Alert dibuat</strong>
-                <span className="label text-muted">{selected.createdAt}</span>
-              </div>
-              {timeline.map((entry) => (
-                <div key={entry.id}>
-                  <strong className="small-copy">{entry.action}</strong>
-                  <span className="label text-muted">{entry.detail}</span>
+              {events.map((event) => (
+                <div key={event.id}>
+                  <strong className="small-copy">
+                    {ALERT_EVENT_LABEL[event.action] ?? event.action}
+                    {event.fromStatus ? ` · ${STATUS_TO_FE[event.fromStatus]} → ${STATUS_TO_FE[event.toStatus]}` : ""}
+                  </strong>
+                  {event.note && <span className="label text-muted">{event.note}</span>}
+                  {event.evidence && (
+                    <span className="label text-muted">Bukti: {event.evidence}</span>
+                  )}
                   <span className="label text-muted">
-                    {entry.user} · {entry.time}
+                    {event.actorUsername} · {formatDateTime(event.createdAt)}
                   </span>
                 </div>
               ))}
@@ -506,8 +288,8 @@ export default function AlertIncidentPage({
             {selected.status === "Baru" && (
               <button
                 className="button button--primary"
-                {...restrictedAction(canEdit)}
-                onClick={() => changeStatus(selected, "Diakui")}
+                {...restrictedAction(canEdit && !busy)}
+                onClick={() => changeStatus(selected, "acknowledge", "Diakui")}
               >
                 Akui Alert
               </button>
@@ -517,7 +299,7 @@ export default function AlertIncidentPage({
                 title="Mulai Remediasi"
                 allowed={canEdit}
                 onSubmit={(note) =>
-                  changeStatus(selected, "Dalam Penanganan", note)
+                  changeStatus(selected, "start", "Dalam Penanganan", note)
                 }
               />
             )}
@@ -529,6 +311,7 @@ export default function AlertIncidentPage({
                 onSubmit={(note, evidence) =>
                   changeStatus(
                     selected,
+                    "submit-review",
                     "Menunggu Review",
                     note,
                     evidence,
@@ -542,15 +325,16 @@ export default function AlertIncidentPage({
                   title="Kembalikan"
                   allowed={canApprove}
                   onSubmit={(note) =>
-                    changeStatus(selected, "Dalam Penanganan", note)
+                    changeStatus(selected, "return", "Dalam Penanganan", note)
                   }
                 />
-                <button
-                  className="button button--primary"
-                  onClick={() => setConfirmClose(true)}
-                >
-                  Setujui & Tutup
-                </button>
+                <WorkflowForm
+                  title="Setujui & Tutup"
+                  allowed={canApprove}
+                  onSubmit={(note) =>
+                    changeStatus(selected, "close", "Ditutup", note)
+                  }
+                />
               </>
             )}
             {selected.status === "Ditutup" && (
@@ -561,17 +345,6 @@ export default function AlertIncidentPage({
           </GlassCard>
         </div>
 
-        <ConfirmDialog
-          open={confirmClose}
-          title="Setujui dan tutup alert?"
-          description="Pastikan bukti remediasi telah diverifikasi sebelum menutup alert."
-          confirmLabel="Setujui & Tutup"
-          onClose={() => setConfirmClose(false)}
-          onConfirm={() => {
-            changeStatus(selected, "Ditutup")
-            setConfirmClose(false)
-          }}
-        />
         <Toast
           visible={Boolean(toast)}
           message={toast}
@@ -583,6 +356,7 @@ export default function AlertIncidentPage({
 
   return (
     <div className="alert-page">
+      <ApiErrorBanner message={error} />
       <GlassCard className="alert-table">
         <div className="alert-toolbar">
           <div className="inventory-filters alert-filters">
@@ -618,8 +392,8 @@ export default function AlertIncidentPage({
           </div>
           <button
             className="button button--primary"
-            onClick={evaluateEws}
-            {...restrictedAction(canConfig)}
+            onClick={() => void evaluateEws()}
+            {...restrictedAction(canConfig && !busy)}
           >
             Evaluasi EWS
           </button>

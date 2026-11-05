@@ -4745,3 +4745,106 @@ textarea {
     max-height: 320px;
   }
 }
+
+/* ---------- Integrasi backend SYNRA ---------- */
+.scope-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid color-mix(in srgb, var(--warning-500) 55%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warning-500) 12%, transparent);
+}
+
+.scope-notice--danger {
+  border-color: color-mix(in srgb, var(--danger-500) 55%, transparent);
+  background: color-mix(in srgb, var(--danger-500) 12%, transparent);
+}
+
+.recovered-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--success-500) 18%, transparent);
+  color: var(--success-500);
+}
+
+/* ---------- Perapian tata letak ---------- */
+/* Filter tanpa elemen di atasnya tidak butuh garis pemisah. */
+.alert-toolbar .inventory-filters,
+.page-actions .inventory-filters {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.page-actions {
+  align-items: flex-end;
+}
+
+.page-actions .inventory-filters {
+  margin-right: auto;
+}
+
+/* Tag dan tautan KPI tidak boleh terpotong. */
+.kpi-card__value .bigcopy {
+  min-width: 0;
+}
+
+.kpi-card__tag,
+.kpi-card__link {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Daftar prioritas digulir agar tinggi panel sejajar dengan grafik utilisasi. */
+.insight-panel .insight-list {
+  max-height: 330px;
+  overflow-y: auto;
+}
+
+.health-row {
+  grid-template-columns: minmax(150px, 40%) 1fr;
+}
+
+.health-row__label .small-copy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kolom ID dan waktu tidak dipatah ke beberapa baris. */
+.data-table td:first-child,
+.data-table td.nowrap {
+  white-space: nowrap;
+}
+
+.table-empty {
+  padding: 18px 4px 4px;
+}
+
+/* 6 kartu KPI: aset, lisensi, alert, critical, host stale, availability */
+@media (min-width: 1181px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-kpis .kpi-card:last-child {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1181px) {
+  .alert-funnel {
+    grid-column: span 8;
+  }
+}
+
+.alert-funnel {
+  align-self: start;
+}

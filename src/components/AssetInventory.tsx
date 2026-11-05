@@ -1,10 +1,12 @@
 import { Download, Pencil, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
-import { createAuditEntry } from "../lib/audit"
 import { restrictedAction, useAccess } from "../lib/useAccess"
-import { useSynraStore } from "../lib/useSynraStore"
+import { type AssetInput, useSynraStore } from "../lib/useSynraStore"
+import { ApiError } from "../lib/api"
+import { formatDateTime } from "../lib/backend"
 import type { Asset } from "../lib/synraDomain"
 import {
+  ApiErrorBanner,
   DataTable,
   Drawer,
   FormField,
@@ -22,20 +24,33 @@ const iconProps = {
 } as const
 
 const PAGE_SIZE = 10
-const MAX_CAPACITY = 1_000_000
 
-type AssetForm = Pick<
-  Asset,
-  "name" | "pic" | "type" | "location" | "capacity" | "expiry"
->
+type AssetForm = Required<Omit<AssetInput, "supervisorInputId" | "supervisorUpdateId">> & {
+  supervisorId: string
+}
 
 const emptyForm: AssetForm = {
-  name: "",
-  pic: "",
-  type: "Server",
-  location: "DC Serpong",
-  capacity: 0,
-  expiry: "",
+  hostname: "",
+  ipAddress: "",
+  component: "CORE_BANKING",
+  hostId: "",
+  category: "",
+  type: "",
+  picName: "",
+  picContact: "",
+  notes: "",
+  supervisorId: "",
+}
+
+const COMPONENT_SUGGESTIONS = ["CORE_BANKING", "DATABASE", "WEB", "MIDDLEWARE", "NETWORK"]
+const CATEGORY_LABEL = { HARDWARE: "Hardware", SOFTWARE: "Software" } as const
+const TYPE_SUGGESTIONS = { HARDWARE: ["CPU", "MEMORY", "DISK"], SOFTWARE: ["VM"] } as const
+
+function formatUptime(ms: number | null | undefined) {
+  if (!ms) return "—"
+  const days = Math.floor(ms / 86_400_000)
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000)
+  return `${days} hari ${hours} jam`
 }
 
 function MetricBar({ label, value }: { label: string; value: number }) {
@@ -78,21 +93,28 @@ function AssetFormDrawer({
   asset: Asset | null
   types: string[]
   onClose: () => void
-  onSave: (values: AssetForm) => string | null
+  onSave: (values: AssetForm) => Promise<string | null>
 }) {
+  const { api } = useSynraStore()
   const [form, setForm] = useState<AssetForm>(
     asset
       ? {
-          name: asset.name,
-          pic: asset.pic,
-          type: asset.type,
-          location: asset.location,
-          capacity: asset.capacity,
-          expiry: asset.expiry,
+          hostname: asset.name,
+          ipAddress: asset.ipAddress ?? "",
+          component: asset.type,
+          hostId: asset.hostId ?? "",
+          category: asset.category ?? "",
+          type: asset.assetType ?? "",
+          picName: asset.pic,
+          picContact: asset.picContact ?? "",
+          notes: asset.note,
+          supervisorId: "",
         }
-      : emptyForm,
+      : { ...emptyForm, hostId: api.hosts[0]?.id ?? "" },
   )
   const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const components = [...new Set([...COMPONENT_SUGGESTIONS, ...types])].sort()
 
   const updateField = <K extends keyof AssetForm>(
     key: K,
@@ -107,9 +129,11 @@ function AssetFormDrawer({
     >
       <form
         className="asset-form"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault()
-          const nextError = onSave(form)
+          setSaving(true)
+          const nextError = await onSave(form)
+          setSaving(false)
           if (nextError) {
             setError(nextError)
             return
@@ -117,69 +141,108 @@ function AssetFormDrawer({
           onClose()
         }}
       >
-        <FormField label="Nama aset">
+        <FormField label="Hostname" hint="Harus sama dengan host.name di Metricbeat">
           <input
-            value={form.name}
-            onChange={(event) => updateField("name", event.target.value)}
-            placeholder="Nama aset"
+            value={form.hostname}
+            onChange={(event) => updateField("hostname", event.target.value)}
+            placeholder="cbs-app-jtg-01"
             required
           />
         </FormField>
-        <FormField label="PIC">
+        <FormField label="Alamat IP">
           <input
-            value={form.pic}
-            onChange={(event) => updateField("pic", event.target.value)}
-            placeholder="Tim penanggung jawab"
+            value={form.ipAddress}
+            onChange={(event) => updateField("ipAddress", event.target.value)}
+            placeholder="10.10.1.11"
             required
           />
         </FormField>
-        <FormField label="Jenis">
+        <FormField label="Komponen">
+          <input
+            list="asset-components"
+            value={form.component}
+            onChange={(event) => updateField("component", event.target.value)}
+            required
+          />
+          <datalist id="asset-components">
+            {components.map((type) => (
+              <option key={type} value={type} />
+            ))}
+          </datalist>
+        </FormField>
+        <FormField label="Host">
           <select
-            value={form.type}
-            onChange={(event) => updateField("type", event.target.value)}
+            value={form.hostId}
+            onChange={(event) => updateField("hostId", event.target.value)}
+            required
           >
-            {types.map((type) => (
-              <option key={type} value={type}>
-                {type}
+            {api.hosts.map((host) => (
+              <option key={host.id} value={host.id}>
+                {host.name}
               </option>
             ))}
           </select>
         </FormField>
-        <FormField label="Lokasi">
+        <FormField label="Kategori">
           <select
-            value={form.location}
+            value={form.category}
             onChange={(event) =>
-              updateField(
-                "location",
-                event.target.value as Asset["location"],
-              )
+              updateField("category", event.target.value as AssetForm["category"])
             }
+            required
           >
-            <option value="DC Serpong">DC Serpong</option>
-            <option value="DRC Surabaya">DRC Surabaya</option>
+            <option value="" disabled>
+              Pilih kategori
+            </option>
+            <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
+            <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
           </select>
         </FormField>
-        <FormField
-          label="Kapasitas (GB)"
-          hint={`Maksimum ${MAX_CAPACITY.toLocaleString("id-ID")} GB`}
-        >
+        <FormField label="Tipe" hint="Mis. CPU untuk hardware, VM untuk software">
           <input
-            type="number"
-            min="1"
-            max={MAX_CAPACITY}
-            value={form.capacity || ""}
-            onChange={(event) =>
-              updateField("capacity", Number(event.target.value))
-            }
+            list="asset-types"
+            value={form.type}
+            onChange={(event) => updateField("type", event.target.value)}
+            required
+          />
+          <datalist id="asset-types">
+            {(form.category ? TYPE_SUGGESTIONS[form.category] : []).map((type) => (
+              <option key={type} value={type} />
+            ))}
+          </datalist>
+        </FormField>
+        <FormField label="Supervisor" hint="Kosongkan bila Anda sendiri supervisornya">
+          <select
+            value={form.supervisorId}
+            onChange={(event) => updateField("supervisorId", event.target.value)}
+          >
+            <option value="">Tanpa pilihan</option>
+            {api.supervisors.map((supervisor) => (
+              <option key={supervisor.id} value={supervisor.id}>
+                {supervisor.fullName}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="PIC">
+          <input
+            value={form.picName}
+            onChange={(event) => updateField("picName", event.target.value)}
+            placeholder="Tim penanggung jawab"
             required
           />
         </FormField>
-        <FormField label="Lifecycle / kedaluwarsa">
+        <FormField label="Kontak PIC (opsional)">
           <input
-            type="date"
-            value={form.expiry}
-            onChange={(event) => updateField("expiry", event.target.value)}
-            required
+            value={form.picContact}
+            onChange={(event) => updateField("picContact", event.target.value)}
+            placeholder="Telepon atau username Telegram"
+          />
+        </FormField>
+        <FormField label="Catatan (opsional)">
+          <input
+            value={form.notes}
+            onChange={(event) => updateField("notes", event.target.value)}
           />
         </FormField>
 
@@ -197,8 +260,8 @@ function AssetFormDrawer({
           >
             Batal
           </button>
-          <button className="button button--primary" type="submit">
-            {asset ? "Simpan perubahan" : "Tambah aset"}
+          <button className="button button--primary" type="submit" disabled={saving}>
+            {saving ? "Menyimpan…" : asset ? "Simpan perubahan" : "Tambah aset"}
           </button>
         </div>
       </form>
@@ -213,31 +276,11 @@ function AssetDetail({
   asset: Asset
   onEdit: () => void
 }) {
-  const { read, helpers } = useSynraStore()
+  const { read } = useSynraStore()
   const { can } = useAccess()
-  const canEdit = can("edit")
-  const history = read("audit").filter(
-    (entry) =>
-      entry.target === asset.id ||
-      entry.detail.toLowerCase().includes(asset.name.toLowerCase()),
-  )
-  const forecast90 = helpers.forecastDays(
-    asset.capacity,
-    asset.used,
-    asset.growth,
-    0.9,
-  )
-  const forecast95 = helpers.forecastDays(
-    asset.capacity,
-    asset.used,
-    asset.growth,
-    0.95,
-  )
-  const forecast100 = helpers.forecastDays(
-    asset.capacity,
-    asset.used,
-    asset.growth,
-  )
+  // Aset boleh ditulis ADMIN dan SUPERVISOR, sama dengan pemegang hak approve.
+  const canEdit = can("approve")
+  const history = read("alerts").filter((alert) => alert.hostname === asset.name)
 
   return (
     <div className="asset-detail">
@@ -254,18 +297,26 @@ function AssetDetail({
 
       <GlassCard className="asset-summary">
         <div>
-          <span className="pretext">{asset.id}</span>
+          <span className="pretext">{asset.ipAddress}</span>
           <h3 className="title-h3">{asset.name}</h3>
           <p className="bodycopy text-muted">{asset.note || "Tanpa catatan"}</p>
         </div>
         <dl className="asset-summary__meta">
           <div>
-            <dt>Jenis</dt>
+            <dt>Komponen</dt>
             <dd>{asset.type}</dd>
           </div>
           <div>
-            <dt>Lokasi</dt>
+            <dt>Host</dt>
             <dd>{asset.location}</dd>
+          </div>
+          <div>
+            <dt>Kategori</dt>
+            <dd>{asset.category ? CATEGORY_LABEL[asset.category] : "—"}</dd>
+          </div>
+          <div>
+            <dt>Tipe</dt>
+            <dd>{asset.assetType ?? "—"}</dd>
           </div>
           <div>
             <dt>PIC</dt>
@@ -287,8 +338,32 @@ function AssetDetail({
             </dd>
           </div>
           <div>
-            <dt>Kedaluwarsa</dt>
-            <dd>{asset.expiry}</dd>
+            <dt>Data terakhir</dt>
+            <dd>{formatDateTime(asset.lastSeenAt ?? null)}</dd>
+          </div>
+          <div>
+            <dt>User input</dt>
+            <dd>{asset.userInput ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Waktu input</dt>
+            <dd>{formatDateTime(asset.dtimeInput ?? null)}</dd>
+          </div>
+          <div>
+            <dt>Supervisor input</dt>
+            <dd>{asset.supervisorInput ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>User update</dt>
+            <dd>{asset.userUpdate ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Waktu update</dt>
+            <dd>{formatDateTime(asset.timeUpdate ?? null)}</dd>
+          </div>
+          <div>
+            <dt>Supervisor update</dt>
+            <dd>{asset.supervisorUpdate ?? "—"}</dd>
           </div>
         </dl>
       </GlassCard>
@@ -305,44 +380,40 @@ function AssetDetail({
         </GlassCard>
 
         <GlassCard className="asset-detail__section">
-          <span className="pretext">FORECAST LINEAR</span>
-          <h3 className="title-h3">Kapasitas</h3>
-          <dl className="forecast-list">
-            <div>
-              <dt>Target 90%</dt>
-              <dd>{forecast90 === null ? "—" : `${forecast90} hari`}</dd>
-            </div>
-            <div>
-              <dt>Target 95%</dt>
-              <dd>{forecast95 === null ? "—" : `${forecast95} hari`}</dd>
-            </div>
-            <div>
-              <dt>Target 100%</dt>
-              <dd>{forecast100 === null ? "—" : `${forecast100} hari`}</dd>
-            </div>
-          </dl>
+          <span className="pretext">DISK & HOST</span>
+          <h3 className="title-h3">Mount point</h3>
+          <div className="asset-detail__metrics">
+            {(asset.disks ?? []).map((disk) => (
+              <MetricBar key={disk.mountPoint} label={disk.mountPoint} value={disk.value} />
+            ))}
+            {(asset.disks ?? []).length === 0 && (
+              <p className="bodycopy text-muted">Belum ada data disk.</p>
+            )}
+          </div>
           <p className="bodycopy-em text-muted">
-            Pertumbuhan {asset.growth.toLocaleString("id-ID")} GB per hari.
+            Uptime {formatUptime(asset.uptimeMs)} · log ERROR periode terakhir: {asset.logErrors ?? "—"}
           </p>
         </GlassCard>
 
         <GlassCard className="asset-detail__section asset-detail__history">
-          <span className="pretext">AUDIT TRAIL</span>
-          <h3 className="title-h3">Riwayat Aset</h3>
+          <span className="pretext">ALERT</span>
+          <h3 className="title-h3">Riwayat Alert</h3>
           {history.length > 0 ? (
             <div className="detail-history">
-              {history.map((entry) => (
-                <div key={entry.id}>
-                  <strong className="small-copy">{entry.action}</strong>
+              {history.map((alert) => (
+                <div key={alert.id}>
+                  <strong className="small-copy">
+                    {alert.id} · {alert.name}
+                  </strong>
                   <span className="label text-muted">
-                    {entry.user} · {entry.detail}
+                    {alert.severity} · {alert.status} · {alert.createdAt}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
             <p className="bodycopy text-muted">
-              Belum ada riwayat khusus untuk aset ini.
+              Belum ada alert untuk aset ini.
             </p>
           )}
         </GlassCard>
@@ -358,17 +429,19 @@ export default function AssetInventory({
   selectedId: string | null
   onSelectedIdChange: (id: string | null) => void
 }) {
-  const { read, add, update } = useSynraStore()
-  const { user, can } = useAccess()
-  const canEdit = can("edit")
+  const { read, actions, api, error } = useSynraStore()
+  const { can } = useAccess()
+  // Menambah/mengubah aset dibatasi untuk ADMIN dan SUPERVISOR di backend.
+  const canEdit = can("approve")
   const assets = read("assets")
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("Semua")
+  const [categoryFilter, setCategoryFilter] = useState("Semua")
   const [locationFilter, setLocationFilter] = useState("Semua")
   const [statusFilter, setStatusFilter] = useState("Semua")
   const [severityFilter, setSeverityFilter] = useState("Semua")
-  const [sortBy, setSortBy] = useState<"id" | "name" | "cpu" | "memory" | "disk">(
-    "id",
+  const [sortBy, setSortBy] = useState<"name" | "cpu" | "memory" | "disk">(
+    "name",
   )
   const [ascending, setAscending] = useState(true)
   const [page, setPage] = useState(1)
@@ -383,10 +456,11 @@ export default function AssetInventory({
       .filter(
         (asset) =>
           (!query ||
-            [asset.id, asset.name, asset.type, asset.pic].some((value) =>
+            [asset.name, asset.ipAddress ?? "", asset.type, asset.pic].some((value) =>
               value.toLowerCase().includes(query),
             )) &&
           (typeFilter === "Semua" || asset.type === typeFilter) &&
+          (categoryFilter === "Semua" || asset.category === categoryFilter) &&
           (locationFilter === "Semua" || asset.location === locationFilter) &&
           (statusFilter === "Semua" || asset.status === statusFilter) &&
           (severityFilter === "Semua" ||
@@ -405,6 +479,7 @@ export default function AssetInventory({
     assets,
     search,
     typeFilter,
+    categoryFilter,
     locationFilter,
     statusFilter,
     severityFilter,
@@ -420,14 +495,22 @@ export default function AssetInventory({
   const selected = assets.find((asset) => asset.id === selectedId) ?? null
 
   const columns: DataTableColumn<Asset>[] = [
-    { key: "id", header: "ID", render: (asset) => asset.id },
+    { key: "id", header: "IP", render: (asset) => asset.ipAddress },
     {
       key: "name",
-      header: "Nama",
+      header: "Hostname",
       render: (asset) => <strong>{asset.name}</strong>,
     },
-    { key: "type", header: "Jenis", render: (asset) => asset.type },
-    { key: "location", header: "Lokasi", render: (asset) => asset.location },
+    { key: "type", header: "Komponen", render: (asset) => asset.type },
+    { key: "location", header: "Host", render: (asset) => asset.location },
+    {
+      key: "category",
+      header: "Kategori",
+      render: (asset) =>
+        asset.category
+          ? `${CATEGORY_LABEL[asset.category]} · ${asset.assetType ?? "—"}`
+          : "—",
+    },
     { key: "pic", header: "PIC", render: (asset) => asset.pic },
     {
       key: "status",
@@ -454,80 +537,23 @@ export default function AssetInventory({
     },
   ]
 
-  const saveAsset = (values: AssetForm) => {
+  const saveAsset = async (values: AssetForm): Promise<string | null> => {
     if (!canEdit) return "Anda tidak memiliki akses untuk tindakan ini."
-    const name = values.name.trim()
-    const duplicate = assets.some(
-      (asset) =>
-        asset.name.toLowerCase() === name.toLowerCase() &&
-        asset.id !== editing?.id,
-    )
-    if (!name || !values.pic.trim() || !values.expiry) {
-      return "Semua field wajib diisi."
+    const { supervisorId, ...rest } = values
+    const input: AssetInput = {
+      ...rest,
+      picContact: rest.picContact.trim() || undefined,
+      notes: rest.notes.trim() || undefined,
+      ...(supervisorId
+        ? { [editing ? "supervisorUpdateId" : "supervisorInputId"]: supervisorId }
+        : {}),
     }
-    if (duplicate) return "Nama aset sudah digunakan."
-    if (
-      !Number.isFinite(values.capacity) ||
-      values.capacity <= 0 ||
-      values.capacity > MAX_CAPACITY
-    ) {
-      return `Kapasitas harus antara 1 dan ${MAX_CAPACITY.toLocaleString("id-ID")} GB.`
-    }
-    if (editing && values.capacity < editing.used) {
-      return "Kapasitas tidak boleh lebih kecil dari kapasitas terpakai."
-    }
-
-    if (editing) {
-      update(
-        "assets",
-        (asset) => asset.id === editing.id,
-        {
-          ...values,
-          name,
-          pic: values.pic.trim(),
-        },
-      )
-      add(
-        "audit",
-        createAuditEntry(
-          read("audit"),
-          user,
-          "Data aset diperbarui",
-          editing.id,
-          name,
-        ),
-      )
-    } else {
-      const nextNumber =
-        Math.max(
-          0,
-          ...assets.map((asset) => Number(asset.id.replace(/\D/g, "")) || 0),
-        ) + 1
-      const id = `AST-${String(nextNumber).padStart(3, "0")}`
-      add("assets", {
-        id,
-        ...values,
-        name,
-        pic: values.pic.trim(),
-        status: "Nonaktif",
-        severity: "Normal",
-        cpu: 0,
-        memory: 0,
-        disk: 0,
-        used: 0,
-        growth: 0,
-        note: "",
-      })
-      add(
-        "audit",
-        createAuditEntry(
-          read("audit"),
-          user,
-          "Aset ditambahkan",
-          id,
-          name,
-        ),
-      )
+    try {
+      if (editing?.apiId) await actions.updateAsset(editing.apiId, input)
+      else await actions.createAsset(input)
+    } catch (e) {
+      if (e instanceof ApiError) return e.errors.length ? e.errors.join(" ") : e.message
+      return "Gagal menyimpan aset."
     }
     setToastVisible(true)
     return null
@@ -535,10 +561,12 @@ export default function AssetInventory({
 
   const exportCsv = () => {
     const headers = [
-      "ID",
-      "Nama",
-      "Jenis",
-      "Lokasi",
+      "IP",
+      "Hostname",
+      "Komponen",
+      "Host",
+      "Kategori",
+      "Tipe",
       "PIC",
       "Status",
       "Severity",
@@ -552,10 +580,12 @@ export default function AssetInventory({
       headers.join(","),
       ...filtered.map((asset) =>
         [
-          asset.id,
+          asset.ipAddress ?? "",
           asset.name,
           asset.type,
           asset.location,
+          asset.category ?? "",
+          asset.assetType ?? "",
           asset.pic,
           asset.status,
           asset.severity,
@@ -608,6 +638,7 @@ export default function AssetInventory({
 
   return (
     <div className="inventory-page">
+      <ApiErrorBanner message={error} />
       <GlassCard className="inventory-panel">
         <div className="inventory-toolbar">
           <div className="inventory-search">
@@ -621,7 +652,7 @@ export default function AssetInventory({
                 setSearch(event.target.value)
                 setPage(1)
               }}
-              placeholder="Cari ID, nama, jenis, atau PIC"
+              placeholder="Cari hostname, IP, komponen, atau PIC"
             />
           </div>
           <div className="inventory-actions">
@@ -645,7 +676,7 @@ export default function AssetInventory({
 
         <div className="inventory-filters">
           <label>
-            <span className="label">Jenis</span>
+            <span className="label">Komponen</span>
             <select
               value={typeFilter}
               onChange={(event) => {
@@ -660,7 +691,21 @@ export default function AssetInventory({
             </select>
           </label>
           <label>
-            <span className="label">Lokasi</span>
+            <span className="label">Kategori</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) => {
+                setCategoryFilter(event.target.value)
+                setPage(1)
+              }}
+            >
+              <option>Semua</option>
+              <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
+              <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Host</span>
             <select
               value={locationFilter}
               onChange={(event) => {
@@ -669,8 +714,9 @@ export default function AssetInventory({
               }}
             >
               <option>Semua</option>
-              <option>DC Serpong</option>
-              <option>DRC Surabaya</option>
+              {api.hosts.map((host) => (
+                <option key={host.id}>{host.name}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -685,7 +731,7 @@ export default function AssetInventory({
               <option>Semua</option>
               <option value="Online">Daring</option>
               <option value="Degraded">Menurun</option>
-              <option value="Offline">Luring</option>
+              <option value="Offline">Luring (stale)</option>
               <option>Nonaktif</option>
             </select>
           </label>
@@ -715,8 +761,7 @@ export default function AssetInventory({
                 setSortBy(event.target.value as typeof sortBy)
               }
             >
-              <option value="id">ID</option>
-              <option value="name">Nama</option>
+              <option value="name">Hostname</option>
               <option value="cpu">CPU</option>
               <option value="memory">Memory</option>
               <option value="disk">Disk</option>

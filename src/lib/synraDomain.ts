@@ -24,8 +24,32 @@ export type AlertStatus =
   | "Menunggu Review"
   | "Ditutup"
 
-export interface Asset extends Omit<(typeof assets)[number], "status"> {
+export interface Asset extends Omit<(typeof assets)[number], "status" | "location"> {
   status: "Online" | "Degraded" | "Offline" | "Nonaktif"
+  /** Nama Host (backend) */
+  location: string
+  // Field dari backend SYNRA
+  apiId?: string
+  ipAddress?: string
+  hostId?: string
+  hostCode?: string
+  category?: "HARDWARE" | "SOFTWARE" | null
+  /** Tipe aset (mis. CPU, VM). Field `type` sudah dipakai untuk komponen. */
+  assetType?: string | null
+  userInput?: string | null
+  dtimeInput?: string
+  userUpdate?: string | null
+  timeUpdate?: string | null
+  supervisorInput?: string | null
+  supervisorUpdate?: string | null
+  picContact?: string
+  isActive?: boolean
+  backendStatus?: "ONLINE" | "WARNING" | "CRITICAL" | "STALE" | "INACTIVE"
+  lastSeenAt?: string | null
+  disks?: { mountPoint: string; value: number }[]
+  uptimeMs?: number | null
+  logErrors?: number | null
+  openAlertCount?: number
 }
 
 export interface LifecycleItem {
@@ -51,6 +75,17 @@ export interface AlertItem {
   severity: Severity
   note: string
   createdAt: string
+  // Field dari backend SYNRA
+  apiId?: string
+  detectedAt?: string
+  hostname?: string
+  component?: string
+  recommendation?: string
+  value?: number
+  threshold?: number
+  /** false bila kondisi sudah normal kembali tetapi alert belum ditutup */
+  conditionActive?: boolean
+  closeNote?: string | null
 }
 
 export interface RenewalRequest {
@@ -88,12 +123,18 @@ export interface User {
   password: string
   role: string
   status: "Aktif" | "Nonaktif"
+  backendRole?: "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+  isLocked?: boolean
 }
 
 export interface Rule {
   name: string
   value: number
   unit: string
+  // Field dari backend SYNRA
+  id?: string
+  metric?: string
+  enabled?: boolean
 }
 
 export interface SynraState {

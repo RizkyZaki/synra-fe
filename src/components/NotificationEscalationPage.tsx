@@ -1,13 +1,17 @@
 import { useState } from "react"
-import { createAuditEntry } from "../lib/audit"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
-import type {
-  AlertItem,
-  NotificationItem,
-  Severity,
-} from "../lib/synraDomain"
-import { DataTable, GlassCard, StatusBadge, Toast, type DataTableColumn } from "./ui"
+import { ApiError } from "../lib/api"
+import type { NotificationItem, Severity } from "../lib/synraDomain"
+import {
+  ApiErrorBanner,
+  DataTable,
+  GlassCard,
+  ScopeNotice,
+  StatusBadge,
+  Toast,
+  type DataTableColumn,
+} from "./ui"
 
 const slaMatrix: Array<{
   severity: Severity
@@ -47,106 +51,25 @@ const slaMatrix: Array<{
   },
 ]
 
-const severityRank: Record<Severity, number> = {
-  Normal: 0,
-  Info: 1,
-  Low: 2,
-  Medium: 3,
-  High: 4,
-  Critical: 5,
-  Expired: 6,
-}
-
-function notificationTarget(alert: AlertItem) {
-  return (
-    slaMatrix.find((item) => item.severity === alert.severity)?.target ??
-    alert.pic
-  )
-}
-
 export default function NotificationEscalationPage() {
-  const { read, add } = useSynraStore()
-  const { user, can } = useAccess()
-  const canEdit = can("edit")
+  const { read, actions, api, error } = useSynraStore()
+  const { can } = useAccess()
+  const canConfig = can("config")
   const notifications = read("notifications")
-  const alerts = read("alerts")
   const [toast, setToast] = useState("")
 
-  const highestOpenAlert = [...alerts]
-    .filter((alert) => alert.status !== "Ditutup")
-    .sort(
-      (a, b) => severityRank[b.severity] - severityRank[a.severity],
-    )[0]
-
-  const logAudit = (action: string, target: string, detail: string) =>
-    add(
-      "audit",
-      createAuditEntry(read("audit"), user, action, target, detail),
-    )
-
-  const createNotification = (
-    alert: AlertItem,
-    title: string,
-  ): NotificationItem => {
-    const nextNumber =
-      Math.max(
-        0,
-        ...read("notifications").map(
-          (item) => Number(item.id.replace(/\D/g, "")) || 0,
-        ),
-      ) + 1
-    return {
-      id: `NTF-${String(nextNumber).padStart(3, "0")}`,
-      title,
-      channel: alert.severity === "Info" ? "Dashboard" : "Email",
-      target: notificationTarget(alert),
-      time: new Date().toISOString(),
-      status: "Terkirim",
+  const sendTest = async () => {
+    if (!canConfig) return
+    try {
+      await actions.sendTestNotification()
+      setToast("Pesan uji terkirim ke Telegram")
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : "Gagal mengirim pesan uji")
     }
-  }
-
-  const sendNotification = () => {
-    if (!canEdit) return
-
-    if (!highestOpenAlert) {
-      setToast("Tidak ada alert terbuka untuk dinotifikasikan")
-      return
-    }
-    const notification = createNotification(
-      highestOpenAlert,
-      `${highestOpenAlert.severity}: ${highestOpenAlert.name}`,
-    )
-    add("notifications", notification)
-    logAudit(
-      "Notifikasi dikirim",
-      notification.id,
-      `${notification.title} → ${notification.target}`,
-    )
-    setToast("Notifikasi berhasil dikirim")
-  }
-
-  const escalate = () => {
-    if (!canEdit) return
-
-    if (!highestOpenAlert) {
-      setToast("Tidak ada alert terbuka untuk dieskalasi")
-      return
-    }
-    const notification = createNotification(
-      highestOpenAlert,
-      `Eskalasi ${highestOpenAlert.severity}: ${highestOpenAlert.name}`,
-    )
-    add("notifications", notification)
-    logAudit(
-      "Alert dieskalasi",
-      highestOpenAlert.id,
-      `${notification.title} → ${notification.target}`,
-    )
-    setToast("Eskalasi berhasil dikirim")
   }
 
   const columns: DataTableColumn<NotificationItem>[] = [
-    { key: "id", header: "ID", render: (item) => item.id },
+    { key: "time", header: "Waktu", render: (item) => item.time },
     {
       key: "title",
       header: "Notifikasi",
@@ -154,44 +77,43 @@ export default function NotificationEscalationPage() {
     },
     { key: "channel", header: "Kanal", render: (item) => item.channel },
     { key: "target", header: "Tujuan", render: (item) => item.target },
-    { key: "time", header: "Waktu", render: (item) => item.time },
     {
       key: "status",
       header: "Status",
-      render: (item) => <StatusBadge status={item.status} tone="success" />,
+      render: (item) => (
+        <StatusBadge
+          status={item.status}
+          tone={item.status === "Terkirim" ? "success" : item.status === "Gagal" ? "danger" : "warning"}
+        />
+      ),
     },
   ]
 
   return (
     <div className="notification-page">
+      <ApiErrorBanner message={error} />
       <GlassCard className="notification-actions">
         <div>
-          <span className="pretext">OPERASI</span>
-          <h3 className="title-h3">Notifikasi & Eskalasi</h3>
+          <span className="pretext">TELEGRAM</span>
+          <h3 className="title-h3">Notifikasi Telegram</h3>
           <p className="bodycopy text-muted">
-            Pengiriman mengikuti severity tertinggi dari alert yang masih
-            terbuka.
+            Dikirim otomatis saat alert dibuat dan setiap perubahan status alert.
+            {api.telegramConfigured === false &&
+              " Telegram belum dikonfigurasi di server (TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID), sehingga notifikasi tercatat sebagai dilewati."}
           </p>
         </div>
         <div>
           <button
-            className="button button--secondary"
-            onClick={escalate}
-            {...restrictedAction(canEdit)}
-          >
-            Eskalasi
-          </button>
-          <button
             className="button button--primary"
-            onClick={sendNotification}
-            {...restrictedAction(canEdit)}
+            onClick={() => void sendTest()}
+            {...restrictedAction(canConfig && api.telegramConfigured === true)}
           >
-            Kirim Notifikasi
+            Kirim Pesan Uji
           </button>
         </div>
       </GlassCard>
-
       <GlassCard className="sla-matrix">
+        <ScopeNotice>Eskalasi berjenjang tidak termasuk cakupan SYNRA. Matriks di bawah hanya referensi.</ScopeNotice>
         <div className="section-heading">
           <span className="pretext">SLA</span>
           <h3 className="title-h3">Matriks Eskalasi</h3>

@@ -1,6 +1,8 @@
 import { Eye, EyeOff } from "lucide-react"
 import { type FormEvent, useState } from "react"
-import { SAMPLE_users } from "../seed"
+import { ApiError } from "../lib/api"
+import { login } from "../lib/auth"
+import type { SessionUser } from "../lib/useAccess"
 import { FormField } from "./ui"
 
 const iconProps = {
@@ -12,46 +14,39 @@ const iconProps = {
 export default function LoginPage({
   onSuccess,
 }: {
-  onSuccess: (email: string) => void
+  onSuccess: (user: SessionUser) => void
 }) {
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState("")
-  const [errors, setErrors] = useState({ email: "", password: "" })
+  const [errors, setErrors] = useState({ username: "", password: "" })
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const nextErrors = {
-      email: !email
-        ? "Email wajib diisi"
-        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-          ? "Format email tidak valid"
-          : "",
+      username: !username.trim() ? "Username wajib diisi" : "",
       password: !password ? "Kata sandi wajib diisi" : "",
     }
     setErrors(nextErrors)
     setFormError("")
-    if (nextErrors.email || nextErrors.password) return
+    if (nextErrors.username || nextErrors.password) return
 
     setLoading(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 450))
-
-    const user = SAMPLE_users.find(
-      (candidate) =>
-        candidate.email.toLowerCase() === email.trim().toLowerCase(),
-    )
-
-    if (!user) {
+    try {
+      const user = await login(username.trim(), password)
+      setSuccess(true)
+      window.setTimeout(() => onSuccess(user), 350)
+    } catch (error) {
+      // Pesan dari backend (salah password, sisa percobaan, akun terkunci) ditampilkan apa adanya.
+      setFormError(
+        error instanceof ApiError ? error.message : "Gagal masuk. Coba lagi.",
+      )
+    } finally {
       setLoading(false)
-      setFormError("Email atau kata sandi salah")
-      return
     }
-
-    setSuccess(true)
-    window.setTimeout(() => onSuccess(user.email), 350)
   }
 
   return (
@@ -77,15 +72,16 @@ export default function LoginPage({
         </div>
 
         <form className="login-form" onSubmit={submit} noValidate>
-          <FormField label="Email" error={errors.email}>
+          <FormField label="Username" error={errors.username}>
             <span className="login-input">
               <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="nama@bank.co.id"
-                autoComplete="email"
-                aria-invalid={Boolean(errors.email)}
+                type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="Masukkan username"
+                autoComplete="username"
+                autoCapitalize="none"
+                aria-invalid={Boolean(errors.username)}
               />
             </span>
           </FormField>

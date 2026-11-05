@@ -1,11 +1,14 @@
 import { Download, Printer } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
-import type { Asset, RenewalRequest, Severity } from "../lib/synraDomain"
+import { ApiError, apiFetch } from "../lib/api"
+import { SEVERITY_TO_FE, STATUS_TO_FE, formatDateTime, type BackendAlertStatus, type BackendSeverity } from "../lib/backend"
 import {
+  ApiErrorBanner,
   DataTable,
   GlassCard,
   SeverityBadge,
-  StatusBadge,
+  Toast,
   type DataTableColumn,
 } from "./ui"
 
@@ -15,138 +18,142 @@ const iconProps = {
   "aria-hidden": true,
 } as const
 
-const severities: Severity[] = [
-  "Critical",
-  "High",
-  "Medium",
-  "Low",
-  "Info",
-  "Normal",
-]
-
-function requestTone(status: RenewalRequest["status"]) {
-  if (status === "Disetujui") return "success" as const
-  if (status === "Ditolak") return "danger" as const
-  return "warning" as const
+interface DailyReport {
+  date: string
+  timezone: string
+  summary: {
+    totalAssets: number
+    availabilityAvgPct: number | null
+    alertsDetected: number
+    alertsClosed: number
+    detectedBySeverity: Record<BackendSeverity, number>
+  }
+  assets: Array<{
+    hostname: string
+    host: string
+    component: string
+    cpuAvg: number | null
+    cpuMax: number | null
+    memoryAvg: number | null
+    memoryMax: number | null
+    diskMax: number | null
+    availabilityPct: number | null
+    alertsDetected: number
+  }>
+  alerts: Array<{
+    code: string
+    hostname: string
+    host: string
+    problem: string
+    severity: BackendSeverity
+    status: BackendAlertStatus
+    detectedAt: string
+  }>
 }
 
-function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
-  const escape = (value: string | number) =>
-    `"${String(value).replace(/"/g, '""')}"`
-  const csv = rows.map((row) => row.map(escape).join(",")).join("\n")
-  const url = URL.createObjectURL(
-    new Blob([csv], { type: "text/csv;charset=utf-8" }),
-  )
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
+const pct = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("id-ID")}%`)
+
+function today() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())
 }
 
 export default function ReportsPage() {
-  const { read, helpers } = useSynraStore()
-  const assets = read("assets")
-  const alerts = read("alerts")
-  const lifecycle = read("lifecycle")
-  const requests = read("requests")
-  const kpi = helpers.dashboardKpi()
-  const riskyAssets = assets.filter(
-    (asset) =>
-      asset.severity === "Critical" ||
-      asset.severity === "High" ||
-      asset.status === "Offline" ||
-      asset.status === "Degraded",
-  )
-  const expiring = lifecycle.filter(
-    (item) => helpers.daysUntil(item.expiry) <= 90,
-  )
+  const { actions, api } = useSynraStore()
+  const [date, setDate] = useState(today)
+  const [hostId, setHostId] = useState("")
+  const [report, setReport] = useState<DailyReport | null>(null)
+  const [error, setError] = useState("")
+  const [toast, setToast] = useState("")
+  const [busy, setBusy] = useState<"" | "xlsx" | "pdf">("")
 
-  const requestColumns: DataTableColumn<RenewalRequest>[] = [
-    { key: "id", header: "ID", render: (request) => request.id },
-    {
-      key: "item",
-      header: "Item",
-      render: (request) => <strong>{request.itemName}</strong>,
-    },
-    {
-      key: "requester",
-      header: "Pemohon",
-      render: (request) => request.requestedBy,
-    },
-    {
-      key: "date",
-      header: "Dibuat",
-      render: (request) => request.createdAt,
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (request) => (
-        <StatusBadge
-          status={request.status}
-          tone={requestTone(request.status)}
-        />
-      ),
-    },
-  ]
+  const query = `date=${date}${hostId ? `&hostId=${hostId}` : ""}`
 
-  const assetColumns: DataTableColumn<Asset>[] = [
+  useEffect(() => {
+    let cancelled = false
+    apiFetch<DailyReport>(`/reports/daily?${query}`)
+      .then((res) => {
+        if (cancelled) return
+        setReport(res)
+        setError("")
+      })
+      .catch((e) => !cancelled && setError(e instanceof ApiError ? e.message : "Gagal memuat laporan"))
+    return () => {
+      cancelled = true
+    }
+  }, [query])
+
+  const exportFile = async (format: "xlsx" | "pdf") => {
+    setBusy(format)
+    try {
+      await actions.download(`/reports/daily/export?format=${format}&${query}`, `synra-laporan-harian-${date}.${format}`)
+      setToast(`Laporan ${format.toUpperCase()} berhasil diunduh`)
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : "Gagal mengekspor laporan")
+    } finally {
+      setBusy("")
+    }
+  }
+
+  const assetColumns: DataTableColumn<DailyReport["assets"][number]>[] = [
     {
       key: "asset",
       header: "Aset",
-      render: (asset) => (
+      render: (a) => (
         <div className="table-primary">
-          <strong>{asset.name}</strong>
-          <span className="label text-muted">{asset.id}</span>
+          <strong>{a.hostname}</strong>
+          <span className="label text-muted">{a.component}</span>
         </div>
       ),
     },
-    { key: "type", header: "Jenis", render: (asset) => asset.type },
-    { key: "location", header: "Lokasi", render: (asset) => asset.location },
-    {
-      key: "severity",
-      header: "Severity",
-      render: (asset) => <SeverityBadge severity={asset.severity} />,
-    },
-    {
-      key: "disk",
-      header: "Disk",
-      render: (asset) => `${asset.disk.toLocaleString("id-ID")}%`,
-    },
+    { key: "host", header: "Host", render: (a) => a.host },
+    { key: "cpu", header: "CPU rata-rata / maks", render: (a) => `${pct(a.cpuAvg)} / ${pct(a.cpuMax)}` },
+    { key: "memory", header: "Memori rata-rata / maks", render: (a) => `${pct(a.memoryAvg)} / ${pct(a.memoryMax)}` },
+    { key: "disk", header: "Disk maks", render: (a) => pct(a.diskMax) },
+    { key: "availability", header: "Availability", render: (a) => pct(a.availabilityPct) },
+    { key: "alerts", header: "Alert", render: (a) => a.alertsDetected },
   ]
 
-  const exportReport = () => {
-    downloadCsv("laporan-eksekutif-synra.csv", [
-      ["Ringkasan Eksekutif", "Nilai"],
-      ["Skor kesehatan", kpi.healthScore],
-      ["Aset Online", `${kpi.online}/${kpi.totalAssets}`],
-      ["Alert Terbuka", kpi.openAlerts],
-      ["Kritis", kpi.critical],
-      ["Kedaluwarsa ≤ 30 hari", kpi.expiring],
-      [],
-      ["Pengajuan", "Item", "Pemohon", "Status", "Dibuat"],
-      ...requests.map((request) => [
-        request.id,
-        request.itemName,
-        request.requestedBy,
-        request.status,
-        request.createdAt,
-      ]),
-    ])
-  }
+  const alertColumns: DataTableColumn<DailyReport["alerts"][number]>[] = [
+    { key: "code", header: "ID", render: (a) => a.code },
+    { key: "problem", header: "Masalah", render: (a) => <strong>{a.problem}</strong> },
+    { key: "host", header: "Aset", render: (a) => `${a.hostname} · ${a.host}` },
+    { key: "severity", header: "Severity", render: (a) => <SeverityBadge severity={SEVERITY_TO_FE[a.severity]} /> },
+    { key: "status", header: "Status", render: (a) => STATUS_TO_FE[a.status] },
+    { key: "time", header: "Terdeteksi", render: (a) => formatDateTime(a.detectedAt) },
+  ]
+
+  const s = report?.summary
 
   return (
     <div className="reports-page">
+      <ApiErrorBanner message={error} />
       <div className="page-actions">
-        <button className="button button--secondary" onClick={exportReport}>
+        <div className="inventory-filters">
+          <label>
+            <span className="label">Tanggal</span>
+            <input type="date" value={date} max={today()} onChange={(event) => setDate(event.target.value || today())} />
+          </label>
+          <label>
+            <span className="label">Host</span>
+            <select value={hostId} onChange={(event) => setHostId(event.target.value)}>
+              <option value="">Semua</option>
+              {api.hosts.map((host) => (
+                <option key={host.id} value={host.id}>
+                  {host.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <button className="button button--secondary" onClick={() => exportFile("xlsx")} disabled={busy !== ""}>
           <Download {...iconProps} />
-          Ekspor CSV
+          {busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}
         </button>
-        <button
-          className="button button--primary"
-          onClick={() => window.print()}
-        >
+        <button className="button button--secondary" onClick={() => exportFile("pdf")} disabled={busy !== ""}>
+          <Download {...iconProps} />
+          {busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}
+        </button>
+        <button className="button button--primary" onClick={() => window.print()}>
           <Printer {...iconProps} />
           Cetak
         </button>
@@ -154,42 +161,37 @@ export default function ReportsPage() {
 
       <div className="executive-summary">
         <GlassCard>
-          <span className="label text-muted">Skor kesehatan</span>
-          <strong className="bigcopy">{kpi.healthScore}</strong>
-          <StatusBadge status={kpi.healthLabel} tone="success" />
+          <span className="label text-muted">Total aset</span>
+          <strong className="bigcopy">{s?.totalAssets ?? "—"}</strong>
+          <span className="label text-muted">Laporan {report?.date ?? date}</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Alert terbuka</span>
-          <strong className="bigcopy">{kpi.openAlerts}</strong>
-          <span className="label text-muted">{kpi.critical} critical</span>
+          <span className="label text-muted">Rata-rata availability</span>
+          <strong className="bigcopy">{s ? pct(s.availabilityAvgPct) : "—"}</strong>
+          <span className="label text-muted">Data per menit</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Aset berisiko</span>
-          <strong className="bigcopy">{riskyAssets.length}</strong>
-          <span className="label text-muted">Perlu perhatian</span>
+          <span className="label text-muted">Alert terdeteksi</span>
+          <strong className="bigcopy">{s?.alertsDetected ?? "—"}</strong>
+          <span className="label text-muted">Pada tanggal ini</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Kedaluwarsa ≤ 90 hari</span>
-          <strong className="bigcopy">{expiring.length}</strong>
-          <span className="label text-muted">Lifecycle aktif</span>
+          <span className="label text-muted">Alert ditutup</span>
+          <strong className="bigcopy">{s?.alertsClosed ?? "—"}</strong>
+          <span className="label text-muted">Pada tanggal ini</span>
         </GlassCard>
       </div>
 
       <GlassCard className="report-severity">
         <div className="section-heading">
           <span className="pretext">ALERT</span>
-          <h3 className="title-h3">Alert per tingkat keparahan</h3>
+          <h3 className="title-h3">Alert terdeteksi per severity</h3>
         </div>
         <div className="severity-summary">
-          {severities.map((severity) => (
+          {(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as BackendSeverity[]).map((severity) => (
             <div key={severity}>
-              <SeverityBadge severity={severity} />
-              <strong className="bigcopy">
-                {
-                  alerts.filter((alert) => alert.severity === severity)
-                    .length
-                }
-              </strong>
+              <SeverityBadge severity={SEVERITY_TO_FE[severity]} />
+              <strong className="bigcopy">{s?.detectedBySeverity[severity] ?? 0}</strong>
             </div>
           ))}
         </div>
@@ -197,28 +199,30 @@ export default function ReportsPage() {
 
       <GlassCard className="report-risk">
         <div className="section-heading">
-          <span className="pretext">RISIKO</span>
-          <h3 className="title-h3">Aset Berisiko</h3>
+          <span className="pretext">ASET</span>
+          <h3 className="title-h3">Statistik per aset</h3>
         </div>
-        <DataTable
-          columns={assetColumns}
-          rows={riskyAssets}
-          rowKey={(asset) => asset.id}
-          rowSeverity={(asset) => asset.severity}
-        />
+        <DataTable columns={assetColumns} rows={report?.assets ?? []} rowKey={(a) => a.hostname} />
       </GlassCard>
 
       <GlassCard className="report-requests">
         <div className="section-heading">
-          <span className="pretext">LIFECYCLE</span>
-          <h3 className="title-h3">Pengajuan Perpanjangan</h3>
+          <span className="pretext">ALERT</span>
+          <h3 className="title-h3">Alert pada tanggal ini</h3>
         </div>
-        <DataTable
-          columns={requestColumns}
-          rows={requests}
-          rowKey={(request) => request.id}
-        />
+        {report && report.alerts.length === 0 ? (
+          <p className="bodycopy text-muted table-empty">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
+        ) : (
+          <DataTable
+            columns={alertColumns}
+            rows={report?.alerts ?? []}
+            rowKey={(a) => a.code}
+            rowSeverity={(a) => SEVERITY_TO_FE[a.severity]}
+          />
+        )}
       </GlassCard>
+
+      <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
     </div>
   )
 }

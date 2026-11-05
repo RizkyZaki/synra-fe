@@ -17,6 +17,7 @@ import {
   StatusBadge,
   Toast,
   type DataTableColumn,
+  ScopeNotice,
 } from "./ui"
 
 export type LifecyclePageName =
@@ -310,6 +311,7 @@ export default function LifecyclePage({
     )
     return (
       <div className="lifecycle-detail">
+        <ScopeNotice />
         <div className="asset-detail__header">
           <button
             className="button button--primary"
@@ -438,6 +440,10 @@ export default function LifecyclePage({
 
   return (
     <div className="lifecycle-page">
+      <ScopeNotice>
+        Lisensi, sertifikat, garansi, dan kontrak tidak termasuk cakupan SYNRA. Data contoh ini hanya
+        tersimpan di browser.
+      </ScopeNotice>
       <GlassCard className="lifecycle-table">
         <div className="section-heading">
           <span className="pretext">LIFECYCLE</span>

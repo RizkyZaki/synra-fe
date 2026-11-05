@@ -1,8 +1,10 @@
 import { Download } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
+import { ApiError } from "../lib/api"
+import { formatDateTime } from "../lib/backend"
 import type { AuditEntry } from "../lib/synraDomain"
-import { DataTable, GlassCard, type DataTableColumn } from "./ui"
+import { ApiErrorBanner, DataTable, GlassCard, Toast, type DataTableColumn } from "./ui"
 
 const iconProps = {
   size: 20,
@@ -11,8 +13,9 @@ const iconProps = {
 } as const
 
 export default function AuditTrailPage() {
-  const { read } = useSynraStore()
+  const { read, actions: storeActions, error } = useSynraStore()
   const audit = read("audit")
+  const [toast, setToast] = useState("")
   const [date, setDate] = useState("")
   const [action, setAction] = useState("Semua")
   const [user, setUser] = useState("Semua")
@@ -44,47 +47,31 @@ export default function AuditTrailPage() {
   }, [audit, date, action, user, search])
 
   const columns: DataTableColumn<AuditEntry>[] = [
-    { key: "time", header: "Waktu", render: (entry) => entry.time },
+    { key: "time", header: "Waktu", render: (entry) => formatDateTime(entry.time) },
     {
       key: "user",
       header: "Pengguna",
       render: (entry) => <strong>{entry.user}</strong>,
     },
-    { key: "role", header: "Role", render: (entry) => entry.role },
+    { key: "role", header: "Entitas", render: (entry) => entry.role },
     { key: "action", header: "Tindakan", render: (entry) => entry.action },
     { key: "target", header: "Target", render: (entry) => entry.target },
     { key: "detail", header: "Detail", render: (entry) => entry.detail },
   ]
 
-  const exportCsv = () => {
-    const escape = (value: string) =>
-      `"${value.replace(/"/g, '""')}"`
-    const rows = [
-      ["Waktu", "Pengguna", "Role", "Tindakan", "Target", "Detail"],
-      ...filtered.map((entry) => [
-        entry.time,
-        entry.user,
-        entry.role,
-        entry.action,
-        entry.target,
-        entry.detail,
-      ]),
-    ]
-    const csv = rows
-      .map((row) => row.map((value) => escape(value)).join(","))
-      .join("\n")
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8" }),
-    )
-    const link = document.createElement("a")
-    link.href = url
-    link.download = "audit-trail-synra.csv"
-    link.click()
-    URL.revokeObjectURL(url)
+  /** Ekspor dari server: seluruh audit (bukan hanya 100 entri terbaru), dan ekspornya ikut diaudit. */
+  const exportCsv = async () => {
+    try {
+      await storeActions.download("/audit-logs/export", "audit-trail-synra.csv")
+      setToast("Audit trail berhasil diekspor")
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : "Gagal mengekspor audit trail")
+    }
   }
 
   return (
     <div className="audit-page">
+      <ApiErrorBanner message={error} />
       <GlassCard className="audit-panel">
         <div className="audit-toolbar">
           <div className="audit-search">
@@ -98,7 +85,7 @@ export default function AuditTrailPage() {
               placeholder="Cari pengguna, tindakan, target, atau detail"
             />
           </div>
-          <button className="button button--primary" onClick={exportCsv}>
+          <button className="button button--primary" onClick={() => void exportCsv()}>
             <Download {...iconProps} />
             Ekspor CSV
           </button>
@@ -145,9 +132,10 @@ export default function AuditTrailPage() {
           rowKey={(entry) => entry.id}
         />
         <p className="label text-muted audit-count">
-          {filtered.length} entri append-only
+          {filtered.length} dari 100 entri terbaru · append-only (tidak dapat diubah atau dihapus)
         </p>
       </GlassCard>
+      <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
     </div>
   )
 }

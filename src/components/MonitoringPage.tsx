@@ -4,6 +4,7 @@ import type { Asset } from "../lib/synraDomain"
 import {
   DataTable,
   GlassCard,
+  ScopeNotice,
   SeverityBadge,
   StatusBadge,
   type DataTableColumn,
@@ -16,12 +17,13 @@ export type MonitoringName =
   | "Availability & Performa"
   | "Backup & Keamanan"
 
+// Komponen aset dari backend (CORE_BANKING, DATABASE, WEB, MIDDLEWARE, ...). null = semua aset.
 const typeMap: Record<MonitoringName, string[] | null> = {
-  Infrastruktur: ["Server", "Network", "Application"],
-  Database: ["Database"],
-  "Storage & Kapasitas": ["Storage"],
+  Infrastruktur: null,
+  Database: ["DATABASE"],
+  "Storage & Kapasitas": null,
   "Availability & Performa": null,
-  "Backup & Keamanan": ["Backup", "Security"],
+  "Backup & Keamanan": [],
 }
 
 function statusTone(status: Asset["status"]) {
@@ -88,54 +90,81 @@ function ComparisonChart({ assets }: { assets: Asset[] }) {
   )
 }
 
-function StorageForecast({ assets }: { assets: Asset[] }) {
-  const { helpers } = useSynraStore()
+function DiskByMount({ assets }: { assets: Asset[] }) {
+  const rows = assets.flatMap((asset) =>
+    (asset.disks ?? []).map((disk) => ({ asset, ...disk })),
+  )
+  rows.sort((a, b) => b.value - a.value)
   return (
     <GlassCard className="storage-forecast">
       <div className="section-heading">
-        <span className="pretext">FORECAST LINEAR</span>
-        <h3 className="title-h3">Proyeksi Kapasitas</h3>
+        <span className="pretext">DISK</span>
+        <h3 className="title-h3">Pemakaian per Mount Point</h3>
       </div>
       <div className="forecast-table-wrap">
         <table className="forecast-table">
           <thead>
             <tr>
               <th>Aset</th>
+              <th>Host</th>
+              <th>Mount point</th>
               <th>Terpakai</th>
-              <th>Growth / hari</th>
-              <th>90%</th>
-              <th>95%</th>
-              <th>100%</th>
             </tr>
           </thead>
           <tbody>
-            {assets.map((asset) => {
-              const targets = [0.9, 0.95, 1].map((target) =>
-                helpers.forecastDays(
-                  asset.capacity,
-                  asset.used,
-                  asset.growth,
-                  target,
-                ),
-              )
-              return (
-                <tr key={asset.id} data-severity={asset.severity}>
-                  <td>
-                    <strong>{asset.name}</strong>
-                  </td>
-                  <td>
-                    {asset.used.toLocaleString("id-ID")} /{" "}
-                    {asset.capacity.toLocaleString("id-ID")} GB
-                  </td>
-                  <td>{asset.growth.toLocaleString("id-ID")} GB</td>
-                  {targets.map((days, index) => (
-                    <td key={index}>
-                      {days === null ? "—" : `${days} hari`}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
+            {rows.map((row) => (
+              <tr
+                key={`${row.asset.id}${row.mountPoint}`}
+                data-severity={row.value >= 95 ? "Critical" : row.value >= 90 ? "High" : row.value >= 80 ? "Medium" : row.value >= 70 ? "Low" : "Normal"}
+              >
+                <td>
+                  <strong>{row.asset.name}</strong>
+                </td>
+                <td>{row.asset.location}</td>
+                <td>{row.mountPoint}</td>
+                <td>{row.value.toLocaleString("id-ID")}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </GlassCard>
+  )
+}
+
+function AvailabilityTable() {
+  const { api } = useSynraStore()
+  const rows = api.availability?.assets ?? []
+  return (
+    <GlassCard className="storage-forecast">
+      <div className="section-heading">
+        <span className="pretext">AVAILABILITY</span>
+        <h3 className="title-h3">
+          Availability 24 Jam
+          {api.availability?.averagePct != null && ` · rata-rata ${api.availability.averagePct.toLocaleString("id-ID")}%`}
+        </h3>
+      </div>
+      <div className="forecast-table-wrap">
+        <table className="forecast-table">
+          <thead>
+            <tr>
+              <th>Aset</th>
+              <th>Host</th>
+              <th>Komponen</th>
+              <th>Availability</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.assetId}>
+                <td>
+                  <strong>{row.hostname}</strong>
+                </td>
+                <td>{row.host}</td>
+                <td>{row.component}</td>
+                <td>{row.pct === null ? "—" : `${row.pct.toLocaleString("id-ID")}%`}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -166,12 +195,12 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       render: (asset) => (
         <div className="table-primary">
           <strong>{asset.name}</strong>
-          <span className="label text-muted">{asset.id}</span>
+          <span className="label text-muted">{asset.ipAddress}</span>
         </div>
       ),
     },
-    { key: "type", header: "Jenis", render: (asset) => asset.type },
-    { key: "location", header: "Lokasi", render: (asset) => asset.location },
+    { key: "type", header: "Komponen", render: (asset) => asset.type },
+    { key: "location", header: "Host", render: (asset) => asset.location },
     {
       key: "status",
       header: "Status",
@@ -203,6 +232,12 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
 
   return (
     <div className="monitoring-page">
+      {name === "Backup & Keamanan" && (
+        <ScopeNotice>
+          Pilot SYNRA hanya menerima CPU, memori, disk, uptime (Metricbeat) dan jumlah log error (Filebeat).
+          Data backup dan keamanan belum tersedia.
+        </ScopeNotice>
+      )}
       <div className="monitoring-summary">
         <GlassCard>
           <span className="label text-muted">Total aset</span>
@@ -226,9 +261,8 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
 
       <ComparisonChart assets={relevant} />
 
-      {name === "Storage & Kapasitas" && (
-        <StorageForecast assets={relevant} />
-      )}
+      {name === "Storage & Kapasitas" && <DiskByMount assets={relevant} />}
+      {name === "Availability & Performa" && <AvailabilityTable />}
 
       <GlassCard className="monitoring-table">
         <div className="section-heading">
