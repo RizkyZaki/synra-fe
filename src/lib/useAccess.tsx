@@ -12,7 +12,7 @@ export type SessionUser = {
   username: string
   /** Label role tampilan FE (mis. "Administrator") yang dipakai aturan akses di seed.ts */
   role: string
-  backendRole: "ADMIN" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+  backendRole: "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
   initials: string
 }
 

@@ -30,7 +30,7 @@ interface DailyReport {
   }
   assets: Array<{
     hostname: string
-    bpd: string
+    host: string
     component: string
     cpuAvg: number | null
     cpuMax: number | null
@@ -43,7 +43,7 @@ interface DailyReport {
   alerts: Array<{
     code: string
     hostname: string
-    bpd: string
+    host: string
     problem: string
     severity: BackendSeverity
     status: BackendAlertStatus
@@ -60,13 +60,13 @@ function today() {
 export default function ReportsPage() {
   const { actions, api } = useSynraStore()
   const [date, setDate] = useState(today)
-  const [bpdId, setBpdId] = useState("")
+  const [hostId, setHostId] = useState("")
   const [report, setReport] = useState<DailyReport | null>(null)
   const [error, setError] = useState("")
   const [toast, setToast] = useState("")
   const [busy, setBusy] = useState<"" | "xlsx" | "pdf">("")
 
-  const query = `date=${date}${bpdId ? `&bpdId=${bpdId}` : ""}`
+  const query = `date=${date}${hostId ? `&hostId=${hostId}` : ""}`
 
   useEffect(() => {
     let cancelled = false
@@ -105,7 +105,7 @@ export default function ReportsPage() {
         </div>
       ),
     },
-    { key: "bpd", header: "BPD", render: (a) => a.bpd },
+    { key: "host", header: "Host", render: (a) => a.host },
     { key: "cpu", header: "CPU rata-rata / maks", render: (a) => `${pct(a.cpuAvg)} / ${pct(a.cpuMax)}` },
     { key: "memory", header: "Memori rata-rata / maks", render: (a) => `${pct(a.memoryAvg)} / ${pct(a.memoryMax)}` },
     { key: "disk", header: "Disk maks", render: (a) => pct(a.diskMax) },
@@ -116,7 +116,7 @@ export default function ReportsPage() {
   const alertColumns: DataTableColumn<DailyReport["alerts"][number]>[] = [
     { key: "code", header: "ID", render: (a) => a.code },
     { key: "problem", header: "Masalah", render: (a) => <strong>{a.problem}</strong> },
-    { key: "host", header: "Aset", render: (a) => `${a.hostname} · ${a.bpd}` },
+    { key: "host", header: "Aset", render: (a) => `${a.hostname} · ${a.host}` },
     { key: "severity", header: "Severity", render: (a) => <SeverityBadge severity={SEVERITY_TO_FE[a.severity]} /> },
     { key: "status", header: "Status", render: (a) => STATUS_TO_FE[a.status] },
     { key: "time", header: "Terdeteksi", render: (a) => formatDateTime(a.detectedAt) },
@@ -134,12 +134,12 @@ export default function ReportsPage() {
             <input type="date" value={date} max={today()} onChange={(event) => setDate(event.target.value || today())} />
           </label>
           <label>
-            <span className="label">BPD</span>
-            <select value={bpdId} onChange={(event) => setBpdId(event.target.value)}>
+            <span className="label">Host</span>
+            <select value={hostId} onChange={(event) => setHostId(event.target.value)}>
               <option value="">Semua</option>
-              {api.bpds.map((bpd) => (
-                <option key={bpd.id} value={bpd.id}>
-                  {bpd.name}
+              {api.hosts.map((host) => (
+                <option key={host.id} value={host.id}>
+                  {host.name}
                 </option>
               ))}
             </select>

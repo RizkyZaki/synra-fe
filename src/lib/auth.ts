@@ -1,7 +1,7 @@
 import { apiFetch, SESSION_EVENT, tokenStore } from "./api"
 import type { SessionUser } from "./useAccess"
 
-export type BackendRole = "ADMIN" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+export type BackendRole = "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
 
 interface BackendUser {
   id: string
@@ -19,6 +19,7 @@ interface LoginResponse {
 // MANAGEMENT memakai "Manager" (read-only + ringkasan eksekutif); hak approve dicabut di AccessProvider.
 const ROLE_LABEL: Record<BackendRole, string> = {
   ADMIN: "Administrator",
+  SUPERVISOR: "Supervisor",
   OPERATOR: "NOC",
   MANAGEMENT: "Manager",
   AUDITOR: "Auditor",

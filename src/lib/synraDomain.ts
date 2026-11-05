@@ -26,13 +26,22 @@ export type AlertStatus =
 
 export interface Asset extends Omit<(typeof assets)[number], "status" | "location"> {
   status: "Online" | "Degraded" | "Offline" | "Nonaktif"
-  /** Nama BPD (backend) */
+  /** Nama Host (backend) */
   location: string
   // Field dari backend SYNRA
   apiId?: string
   ipAddress?: string
-  bpdId?: string
-  bpdCode?: string
+  hostId?: string
+  hostCode?: string
+  category?: "HARDWARE" | "SOFTWARE" | null
+  /** Tipe aset (mis. CPU, VM). Field `type` sudah dipakai untuk komponen. */
+  assetType?: string | null
+  userInput?: string | null
+  dtimeInput?: string
+  userUpdate?: string | null
+  timeUpdate?: string | null
+  supervisorInput?: string | null
+  supervisorUpdate?: string | null
   picContact?: string
   isActive?: boolean
   backendStatus?: "ONLINE" | "WARNING" | "CRITICAL" | "STALE" | "INACTIVE"
@@ -114,7 +123,7 @@ export interface User {
   password: string
   role: string
   status: "Aktif" | "Nonaktif"
-  backendRole?: "ADMIN" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+  backendRole?: "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
   isLocked?: boolean
 }
 

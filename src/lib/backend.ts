@@ -10,7 +10,7 @@ import type {
   User,
 } from "./synraDomain"
 
-export type BackendRole = "ADMIN" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+export type BackendRole = "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
 export type BackendSeverity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
 export type BackendAlertStatus =
   | "NEW"
@@ -25,7 +25,7 @@ export interface Paginated<T> {
   meta: { page: number; limit: number; total: number; totalPages: number }
 }
 
-export interface BpdDto {
+export interface HostDto {
   id: string
   code: string
   name: string
@@ -33,12 +33,25 @@ export interface BpdDto {
   assetCount: number
 }
 
+export type AssetCategory = "HARDWARE" | "SOFTWARE"
+
+export interface UserRefDto {
+  id: string
+  fullName: string
+}
+
+export interface SupervisorDto extends UserRefDto {
+  username: string
+}
+
 export interface AssetDto {
   id: string
   hostname: string
   ipAddress: string
   component: string
-  bpd: { id: string; code: string; name: string }
+  host: { id: string; code: string; name: string }
+  category: AssetCategory | null
+  type: string | null
   picName: string
   picContact: string | null
   notes: string | null
@@ -56,6 +69,12 @@ export interface AssetDto {
     timestamp: string | null
   }
   openAlerts: { count: number; activeCount: number; maxSeverity: BackendSeverity | null }
+  userInput: UserRefDto | null
+  dtimeInput: string
+  userUpdate: UserRefDto | null
+  timeUpdate: string | null
+  supervisorInput: UserRefDto | null
+  supervisorUpdate: UserRefDto | null
 }
 
 export interface AlertDto {
@@ -66,7 +85,7 @@ export interface AlertDto {
     hostname: string
     ipAddress: string
     component: string
-    bpd: { id: string; code: string; name: string }
+    host: { id: string; code: string; name: string }
   }
   metric: RuleMetric
   label: string
@@ -156,7 +175,7 @@ export interface SummaryDto {
   openAlertsBySeverity: Record<BackendSeverity, number>
   alertsByStatus: Record<BackendAlertStatus, number>
   assetsByComponent: { name: string; count: number }[]
-  assetsByBpd: { name: string; count: number }[]
+  assetsByHost: { name: string; count: number }[]
   lastIngestAt: string | null
   lastIngestError: string | null
 }
@@ -166,7 +185,7 @@ export interface AvailabilityDto {
   assets: {
     assetId: string
     hostname: string
-    bpd: string
+    host: string
     component: string
     pct: number | null
   }[]
@@ -205,6 +224,7 @@ export const STATUS_TO_FE: Record<BackendAlertStatus, AlertStatus> = {
 
 export const ROLE_LABEL: Record<BackendRole, string> = {
   ADMIN: "Administrator",
+  SUPERVISOR: "Supervisor",
   OPERATOR: "NOC",
   MANAGEMENT: "Manager",
   AUDITOR: "Auditor",
@@ -212,6 +232,7 @@ export const ROLE_LABEL: Record<BackendRole, string> = {
 
 export const ROLE_OPTIONS: { value: BackendRole; label: string }[] = [
   { value: "ADMIN", label: "Administrator (ADMIN)" },
+  { value: "SUPERVISOR", label: "Supervisor (SUPERVISOR)" },
   { value: "OPERATOR", label: "Operator / NOC (OPERATOR)" },
   { value: "MANAGEMENT", label: "Manajemen, read-only (MANAGEMENT)" },
   { value: "AUDITOR", label: "Auditor (AUDITOR)" },
@@ -241,9 +262,9 @@ const AUDIT_LABEL: Record<string, string> = {
   ASSET_CREATE: "Aset ditambahkan",
   ASSET_UPDATE: "Data aset diperbarui",
   ASSET_DELETE: "Aset dihapus",
-  BPD_CREATE: "BPD ditambahkan",
-  BPD_UPDATE: "BPD diperbarui",
-  BPD_DELETE: "BPD dihapus",
+  HOST_CREATE: "Host ditambahkan",
+  HOST_UPDATE: "Host diperbarui",
+  HOST_DELETE: "Host dihapus",
 }
 
 export const ALERT_EVENT_LABEL: Record<string, string> = {
@@ -289,7 +310,7 @@ export function toAsset(a: AssetDto): Asset {
     apiId: a.id,
     name: a.hostname,
     type: a.component,
-    location: a.bpd.name,
+    location: a.host.name,
     pic: a.picName,
     status: ASSET_STATUS[a.status],
     severity: a.openAlerts.maxSeverity ? SEVERITY_TO_FE[a.openAlerts.maxSeverity] : "Normal",
@@ -303,8 +324,16 @@ export function toAsset(a: AssetDto): Asset {
     expiry: "",
     note: a.notes ?? "",
     ipAddress: a.ipAddress,
-    bpdId: a.bpd.id,
-    bpdCode: a.bpd.code,
+    hostId: a.host.id,
+    hostCode: a.host.code,
+    category: a.category,
+    assetType: a.type,
+    userInput: a.userInput?.fullName ?? null,
+    dtimeInput: a.dtimeInput,
+    userUpdate: a.userUpdate?.fullName ?? null,
+    timeUpdate: a.timeUpdate,
+    supervisorInput: a.supervisorInput?.fullName ?? null,
+    supervisorUpdate: a.supervisorUpdate?.fullName ?? null,
     picContact: a.picContact ?? "",
     isActive: a.isActive,
     backendStatus: a.status,
@@ -322,7 +351,7 @@ export function toAlert(a: AlertDto): AlertItem {
     apiId: a.id,
     name: a.problem,
     type: METRIC_LABEL[a.metric],
-    location: a.asset.bpd.name,
+    location: a.asset.host.name,
     pic: a.picName,
     status: STATUS_TO_FE[a.status],
     severity: SEVERITY_TO_FE[a.severity],
@@ -434,7 +463,7 @@ function describeAudit(a: AuditDto): { target: string; detail: string } {
         ? { target: "Audit log", detail: join(`CSV`, `${str(after.rows)} baris`) }
         : {
             target: `Laporan harian ${str(after.date)}`,
-            detail: join(str(after.format).toUpperCase(), after.bpd ? str(after.bpd) : "Semua BPD"),
+            detail: join(str(after.format).toUpperCase(), after.host ?? after.bpd ? str(after.host ?? after.bpd) : "Semua Host"),
           }
     case "METRIC_IMPORT":
       return {
