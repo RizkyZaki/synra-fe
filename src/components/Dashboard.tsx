@@ -410,7 +410,7 @@ function AvailabilityBreakdown() {
             <div className="health-row__label">
               <span className="small-copy">{row.hostname}</span>
               <span className="label text-muted">
-                {row.bpd} ·{" "}
+                {row.host} ·{" "}
                 {row.pct === null ? "belum ada data" : `${row.pct.toLocaleString("id-ID")}%`}
               </span>
             </div>
@@ -430,31 +430,31 @@ function AvailabilityBreakdown() {
 function LocationStatus() {
   const { read } = useSynraStore()
   const assets = read("assets")
-  const bpds = [...new Set(assets.map((asset) => asset.location))].sort()
+  const hosts = [...new Set(assets.map((asset) => asset.location))].sort()
 
   return (
     <GlassCard className="dashboard-card location-status">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">BPD</span>
-          <h3 className="title-h3">Status per BPD</h3>
+          <span className="pretext">Host</span>
+          <h3 className="title-h3">Status per Host</h3>
         </div>
       </div>
       <div className="location-status__grid">
-        {bpds.map((bpd) => {
-          const bpdAssets = assets.filter((asset) => asset.location === bpd)
+        {hosts.map((host) => {
+          const hostAssets = assets.filter((asset) => asset.location === host)
           const count = (status: string) =>
-            bpdAssets.filter((asset) => asset.backendStatus === status).length
+            hostAssets.filter((asset) => asset.backendStatus === status).length
           return (
-            <div className="location-mini" key={bpd}>
+            <div className="location-mini" key={host}>
               <div className="location-mini__title">
-                <strong className="small-copy">{bpd}</strong>
+                <strong className="small-copy">{host}</strong>
               </div>
               <dl>
                 <div>
                   <dt>Daring</dt>
                   <dd>
-                    {count("ONLINE")}/{bpdAssets.length}
+                    {count("ONLINE")}/{hostAssets.length}
                   </dd>
                 </div>
                 <div>

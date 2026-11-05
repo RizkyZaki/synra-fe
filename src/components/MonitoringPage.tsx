@@ -106,7 +106,7 @@ function DiskByMount({ assets }: { assets: Asset[] }) {
           <thead>
             <tr>
               <th>Aset</th>
-              <th>BPD</th>
+              <th>Host</th>
               <th>Mount point</th>
               <th>Terpakai</th>
             </tr>
@@ -149,7 +149,7 @@ function AvailabilityTable() {
           <thead>
             <tr>
               <th>Aset</th>
-              <th>BPD</th>
+              <th>Host</th>
               <th>Komponen</th>
               <th>Availability</th>
             </tr>
@@ -160,7 +160,7 @@ function AvailabilityTable() {
                 <td>
                   <strong>{row.hostname}</strong>
                 </td>
-                <td>{row.bpd}</td>
+                <td>{row.host}</td>
                 <td>{row.component}</td>
                 <td>{row.pct === null ? "—" : `${row.pct.toLocaleString("id-ID")}%`}</td>
               </tr>
@@ -200,7 +200,7 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       ),
     },
     { key: "type", header: "Komponen", render: (asset) => asset.type },
-    { key: "location", header: "BPD", render: (asset) => asset.location },
+    { key: "location", header: "Host", render: (asset) => asset.location },
     {
       key: "status",
       header: "Status",

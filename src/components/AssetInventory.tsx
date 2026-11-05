@@ -25,19 +25,26 @@ const iconProps = {
 
 const PAGE_SIZE = 10
 
-type AssetForm = Required<AssetInput>
+type AssetForm = Required<Omit<AssetInput, "supervisorInputId" | "supervisorUpdateId">> & {
+  supervisorId: string
+}
 
 const emptyForm: AssetForm = {
   hostname: "",
   ipAddress: "",
   component: "CORE_BANKING",
-  bpdId: "",
+  hostId: "",
+  category: "",
+  type: "",
   picName: "",
   picContact: "",
   notes: "",
+  supervisorId: "",
 }
 
 const COMPONENT_SUGGESTIONS = ["CORE_BANKING", "DATABASE", "WEB", "MIDDLEWARE", "NETWORK"]
+const CATEGORY_LABEL = { HARDWARE: "Hardware", SOFTWARE: "Software" } as const
+const TYPE_SUGGESTIONS = { HARDWARE: ["CPU", "MEMORY", "DISK"], SOFTWARE: ["VM"] } as const
 
 function formatUptime(ms: number | null | undefined) {
   if (!ms) return "—"
@@ -95,12 +102,15 @@ function AssetFormDrawer({
           hostname: asset.name,
           ipAddress: asset.ipAddress ?? "",
           component: asset.type,
-          bpdId: asset.bpdId ?? "",
+          hostId: asset.hostId ?? "",
+          category: asset.category ?? "",
+          type: asset.assetType ?? "",
           picName: asset.pic,
           picContact: asset.picContact ?? "",
           notes: asset.note,
+          supervisorId: "",
         }
-      : { ...emptyForm, bpdId: api.bpds[0]?.id ?? "" },
+      : { ...emptyForm, hostId: api.hosts[0]?.id ?? "" },
   )
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -160,15 +170,56 @@ function AssetFormDrawer({
             ))}
           </datalist>
         </FormField>
-        <FormField label="BPD">
+        <FormField label="Host">
           <select
-            value={form.bpdId}
-            onChange={(event) => updateField("bpdId", event.target.value)}
+            value={form.hostId}
+            onChange={(event) => updateField("hostId", event.target.value)}
             required
           >
-            {api.bpds.map((bpd) => (
-              <option key={bpd.id} value={bpd.id}>
-                {bpd.name}
+            {api.hosts.map((host) => (
+              <option key={host.id} value={host.id}>
+                {host.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Kategori">
+          <select
+            value={form.category}
+            onChange={(event) =>
+              updateField("category", event.target.value as AssetForm["category"])
+            }
+            required
+          >
+            <option value="" disabled>
+              Pilih kategori
+            </option>
+            <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
+            <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
+          </select>
+        </FormField>
+        <FormField label="Tipe" hint="Mis. CPU untuk hardware, VM untuk software">
+          <input
+            list="asset-types"
+            value={form.type}
+            onChange={(event) => updateField("type", event.target.value)}
+            required
+          />
+          <datalist id="asset-types">
+            {(form.category ? TYPE_SUGGESTIONS[form.category] : []).map((type) => (
+              <option key={type} value={type} />
+            ))}
+          </datalist>
+        </FormField>
+        <FormField label="Supervisor" hint="Kosongkan bila Anda sendiri supervisornya">
+          <select
+            value={form.supervisorId}
+            onChange={(event) => updateField("supervisorId", event.target.value)}
+          >
+            <option value="">Tanpa pilihan</option>
+            {api.supervisors.map((supervisor) => (
+              <option key={supervisor.id} value={supervisor.id}>
+                {supervisor.fullName}
               </option>
             ))}
           </select>
@@ -227,7 +278,8 @@ function AssetDetail({
 }) {
   const { read } = useSynraStore()
   const { can } = useAccess()
-  const canEdit = can("config")
+  // Aset boleh ditulis ADMIN dan SUPERVISOR, sama dengan pemegang hak approve.
+  const canEdit = can("approve")
   const history = read("alerts").filter((alert) => alert.hostname === asset.name)
 
   return (
@@ -255,8 +307,16 @@ function AssetDetail({
             <dd>{asset.type}</dd>
           </div>
           <div>
-            <dt>BPD</dt>
+            <dt>Host</dt>
             <dd>{asset.location}</dd>
+          </div>
+          <div>
+            <dt>Kategori</dt>
+            <dd>{asset.category ? CATEGORY_LABEL[asset.category] : "—"}</dd>
+          </div>
+          <div>
+            <dt>Tipe</dt>
+            <dd>{asset.assetType ?? "—"}</dd>
           </div>
           <div>
             <dt>PIC</dt>
@@ -280,6 +340,30 @@ function AssetDetail({
           <div>
             <dt>Data terakhir</dt>
             <dd>{formatDateTime(asset.lastSeenAt ?? null)}</dd>
+          </div>
+          <div>
+            <dt>User input</dt>
+            <dd>{asset.userInput ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Waktu input</dt>
+            <dd>{formatDateTime(asset.dtimeInput ?? null)}</dd>
+          </div>
+          <div>
+            <dt>Supervisor input</dt>
+            <dd>{asset.supervisorInput ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>User update</dt>
+            <dd>{asset.userUpdate ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Waktu update</dt>
+            <dd>{formatDateTime(asset.timeUpdate ?? null)}</dd>
+          </div>
+          <div>
+            <dt>Supervisor update</dt>
+            <dd>{asset.supervisorUpdate ?? "—"}</dd>
           </div>
         </dl>
       </GlassCard>
@@ -347,11 +431,12 @@ export default function AssetInventory({
 }) {
   const { read, actions, api, error } = useSynraStore()
   const { can } = useAccess()
-  // Menambah/mengubah aset adalah konfigurasi (ADMIN) di backend.
-  const canEdit = can("config")
+  // Menambah/mengubah aset dibatasi untuk ADMIN dan SUPERVISOR di backend.
+  const canEdit = can("approve")
   const assets = read("assets")
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("Semua")
+  const [categoryFilter, setCategoryFilter] = useState("Semua")
   const [locationFilter, setLocationFilter] = useState("Semua")
   const [statusFilter, setStatusFilter] = useState("Semua")
   const [severityFilter, setSeverityFilter] = useState("Semua")
@@ -375,6 +460,7 @@ export default function AssetInventory({
               value.toLowerCase().includes(query),
             )) &&
           (typeFilter === "Semua" || asset.type === typeFilter) &&
+          (categoryFilter === "Semua" || asset.category === categoryFilter) &&
           (locationFilter === "Semua" || asset.location === locationFilter) &&
           (statusFilter === "Semua" || asset.status === statusFilter) &&
           (severityFilter === "Semua" ||
@@ -393,6 +479,7 @@ export default function AssetInventory({
     assets,
     search,
     typeFilter,
+    categoryFilter,
     locationFilter,
     statusFilter,
     severityFilter,
@@ -415,7 +502,15 @@ export default function AssetInventory({
       render: (asset) => <strong>{asset.name}</strong>,
     },
     { key: "type", header: "Komponen", render: (asset) => asset.type },
-    { key: "location", header: "BPD", render: (asset) => asset.location },
+    { key: "location", header: "Host", render: (asset) => asset.location },
+    {
+      key: "category",
+      header: "Kategori",
+      render: (asset) =>
+        asset.category
+          ? `${CATEGORY_LABEL[asset.category]} · ${asset.assetType ?? "—"}`
+          : "—",
+    },
     { key: "pic", header: "PIC", render: (asset) => asset.pic },
     {
       key: "status",
@@ -444,10 +539,14 @@ export default function AssetInventory({
 
   const saveAsset = async (values: AssetForm): Promise<string | null> => {
     if (!canEdit) return "Anda tidak memiliki akses untuk tindakan ini."
+    const { supervisorId, ...rest } = values
     const input: AssetInput = {
-      ...values,
-      picContact: values.picContact.trim() || undefined,
-      notes: values.notes.trim() || undefined,
+      ...rest,
+      picContact: rest.picContact.trim() || undefined,
+      notes: rest.notes.trim() || undefined,
+      ...(supervisorId
+        ? { [editing ? "supervisorUpdateId" : "supervisorInputId"]: supervisorId }
+        : {}),
     }
     try {
       if (editing?.apiId) await actions.updateAsset(editing.apiId, input)
@@ -465,7 +564,9 @@ export default function AssetInventory({
       "IP",
       "Hostname",
       "Komponen",
-      "BPD",
+      "Host",
+      "Kategori",
+      "Tipe",
       "PIC",
       "Status",
       "Severity",
@@ -483,6 +584,8 @@ export default function AssetInventory({
           asset.name,
           asset.type,
           asset.location,
+          asset.category ?? "",
+          asset.assetType ?? "",
           asset.pic,
           asset.status,
           asset.severity,
@@ -588,7 +691,21 @@ export default function AssetInventory({
             </select>
           </label>
           <label>
-            <span className="label">BPD</span>
+            <span className="label">Kategori</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) => {
+                setCategoryFilter(event.target.value)
+                setPage(1)
+              }}
+            >
+              <option>Semua</option>
+              <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
+              <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Host</span>
             <select
               value={locationFilter}
               onChange={(event) => {
@@ -597,8 +714,8 @@ export default function AssetInventory({
               }}
             >
               <option>Semua</option>
-              {api.bpds.map((bpd) => (
-                <option key={bpd.id}>{bpd.name}</option>
+              {api.hosts.map((host) => (
+                <option key={host.id}>{host.name}</option>
               ))}
             </select>
           </label>

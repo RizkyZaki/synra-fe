@@ -188,7 +188,7 @@ export default function AlertIncidentPage({
       ),
     },
     { key: "type", header: "Jenis", render: (alert) => alert.type },
-    { key: "location", header: "BPD", render: (alert) => alert.location },
+    { key: "location", header: "Host", render: (alert) => alert.location },
     { key: "pic", header: "PIC", render: (alert) => alert.pic },
     {
       key: "severity",

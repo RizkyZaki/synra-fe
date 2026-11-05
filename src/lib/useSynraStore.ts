@@ -33,7 +33,9 @@ import {
   type AuditDto,
   type AvailabilityDto,
   type BackendRole,
-  type BpdDto,
+  type AssetCategory,
+  type HostDto,
+  type SupervisorDto,
   type NotificationDto,
   type Paginated,
   type SummaryDto,
@@ -80,7 +82,8 @@ const emptyRemote = (): Omit<SynraState, "lifecycle" | "requests"> => ({
 export interface ApiData {
   summary: SummaryDto | null
   availability: AvailabilityDto | null
-  bpds: BpdDto[]
+  hosts: HostDto[]
+  supervisors: SupervisorDto[]
   telegramConfigured: boolean | null
 }
 
@@ -88,10 +91,14 @@ export interface AssetInput {
   hostname: string
   ipAddress: string
   component: string
-  bpdId: string
+  hostId: string
+  category: AssetCategory | ""
+  type: string
   picName: string
   picContact?: string
   notes?: string
+  supervisorInputId?: string
+  supervisorUpdateId?: string
 }
 
 export type AlertTransition = "acknowledge" | "start" | "submit-review" | "return" | "close"
@@ -165,7 +172,7 @@ async function optional<T>(path: string): Promise<T | null> {
 export function SynraStoreProvider({ children }: { children: ReactNode }) {
   const [local, setLocal] = useState<LocalState>(loadLocal)
   const [remote, setRemote] = useState(emptyRemote)
-  const [api, setApi] = useState<ApiData>({ summary: null, availability: null, bpds: [], telegramConfigured: null })
+  const [api, setApi] = useState<ApiData>({ summary: null, availability: null, hosts: [], supervisors: [], telegramConfigured: null })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const inFlight = useRef(false)
@@ -179,18 +186,19 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
     inFlight.current = true
     setLoading(true)
     try {
-      const [assets, alerts, rules, bpds, summary, availability, notifications, notifStatus, users, audit] =
+      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors] =
         await Promise.all([
           apiFetch<Paginated<AssetDto>>("/assets?limit=100"),
           apiFetch<Paginated<AlertDto>>("/alerts?limit=100"),
           apiFetch<ThresholdGroupDto[]>("/thresholds"),
-          apiFetch<BpdDto[]>("/bpds"),
+          apiFetch<HostDto[]>("/hosts"),
           apiFetch<SummaryDto>("/dashboard/summary"),
           apiFetch<AvailabilityDto>("/dashboard/availability"),
           apiFetch<Paginated<NotificationDto>>("/notifications?limit=100"),
           optional<{ telegramConfigured: boolean }>("/notifications/status"),
           optional<Paginated<UserDto>>("/users?limit=100"),
           optional<Paginated<AuditDto>>("/audit-logs?limit=100"),
+          optional<SupervisorDto[]>("/users/supervisors"),
         ])
       setRemote({
         assets: assets.data.map(toAsset),
@@ -200,7 +208,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
         users: users?.data.map(toUser) ?? [],
         audit: audit?.data.map(toAudit) ?? [],
       })
-      setApi({ summary, availability, bpds, telegramConfigured: notifStatus?.telegramConfigured ?? null })
+      setApi({ summary, availability, hosts, supervisors: supervisors ?? [], telegramConfigured: notifStatus?.telegramConfigured ?? null })
       setError("")
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data dari server")
