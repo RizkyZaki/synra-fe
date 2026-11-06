@@ -151,12 +151,16 @@ function UtilizationChart() {
   const { data, error } = useUtilization(period)
   const width = 760
   const height = 260
-  const left = 42
+  const left = 52
   const top = 18
-  const chartWidth = 700
+  const chartWidth = 688
   const chartHeight = 188
-  const step = chartWidth / Math.max(data.length - 1, 1)
-  const x = (index: number) => left + step * index
+  const padX = 24
+  const plotLeft = left + padX
+  const plotWidth = chartWidth - padX * 2
+  const step = plotWidth / Math.max(data.length - 1, 1)
+  const x = (index: number) =>
+    data.length === 1 ? plotLeft + plotWidth / 2 : plotLeft + step * index
   const y = (value: number) => top + ((100 - value) / 100) * chartHeight
   const linePoints = (metric: "cpu" | "memory") =>
     data.map((point, index) => `${x(index)},${y(point[metric])}`).join(" ")
@@ -166,7 +170,7 @@ function UtilizationChart() {
       <div className="dashboard-card__header">
         <div>
           <span className="pretext">MONITORING</span>
-          <h3 className="title-h3">Utilisasi CPU / memori / disk</h3>
+          <h3 className="title-h3">Utilisasi CPU / Memori / Disk</h3>
         </div>
         <div className="period-filter" aria-label="Periode grafik">
           {(["24 jam", "7 hari", "30 hari"] as Period[]).map((option) => (
@@ -225,7 +229,7 @@ function UtilizationChart() {
                   y2={tickY}
                   className="chart-gridline"
                 />
-                <text x={left - 10} y={tickY + 4} className="chart-axis-label">
+                <text x={left - 12} y={tickY + 4} className="chart-axis-label">
                   {tick}%
                 </text>
               </g>
@@ -275,7 +279,7 @@ function UtilizationChart() {
                 y={height - 16}
                 className="chart-axis-label chart-axis-label--x"
               >
-                {point.label}
+                {point.label} 
               </text>
               <rect
                 x={x(index) - step / 2}
@@ -284,11 +288,13 @@ function UtilizationChart() {
                 height={chartHeight + 30}
                 fill="transparent"
                 onMouseEnter={() => setHovered(index)}
+                onMouseLeave={() => setHovered(null)}
               />
             </g>
           ))}
 
           {hovered !== null && (
+         
             <g
               transform={`translate(${Math.min(
                 Math.max(x(hovered) - 60, left),
@@ -311,6 +317,7 @@ function UtilizationChart() {
               </text>
             </g>
           )}
+
         </svg>
       </div>
     </GlassCard>
@@ -633,8 +640,7 @@ function AlertFunnel() {
     <GlassCard className="dashboard-card alert-funnel">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">OPERASI</span>
-          <h3 className="title-h3">Tahapan alert</h3>
+          <h3 className="title-h3">Tahap alert</h3>
         </div>
       </div>
       <div className="funnel-list">
@@ -642,7 +648,6 @@ function AlertFunnel() {
           <div className="funnel-stage" key={stage.status}>
             <span className="funnel-stage__count">{stage.count}</span>
             <span className="label">{stage.status}</span>
-            {index < funnel.length - 1 && <span aria-hidden="true">→</span>}
           </div>
         ))}
       </div>

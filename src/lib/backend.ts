@@ -509,8 +509,10 @@ export function toAudit(a: AuditDto): AuditEntry {
 }
 
 export function toNotification(n: NotificationDto): NotificationItem {
+  const alertId = n.alert ? `ALT-${String(n.alert.number).padStart(3, "0")}` : undefined
   return {
     id: n.id.slice(0, 8).toUpperCase(),
+    alertId,
     title: n.alert
       ? `ALT-${String(n.alert.number).padStart(3, "0")} · ${ALERT_EVENT_LABEL[n.event] ?? n.event}`
       : "Pesan uji Telegram",

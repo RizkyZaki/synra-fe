@@ -26,7 +26,7 @@ import AdministrationPage from "./components/AdministrationPage"
 import AuditTrailPage from "./components/AuditTrailPage"
 import Dashboard from "./components/Dashboard"
 import AssetInventory from "./components/AssetInventory"
-import AlertIncidentPage from "./components/AlertIncidentPage"
+import AlertIncidentPage, { alertStatusTone } from "./components/AlertIncidentPage"
 import LifecyclePage, {
   type LifecyclePageName,
 } from "./components/LifecyclePage"
@@ -41,6 +41,7 @@ import { AccessProvider, type SessionUser } from "./lib/useAccess"
 import { UNAUTHORIZED_EVENT } from "./lib/api"
 import { logout, restoreSession } from "./lib/auth"
 import { useSynraStore } from "./lib/useSynraStore"
+import type { NotificationItem } from "./lib/synraDomain"
 import { can, roleCapabilities } from "./seed"
 
 type Theme = "dark" | "light"
@@ -542,6 +543,7 @@ export default function App() {
         .filter((group) => group.items.length > 0)
     : navGroups
   const notifications = read("notifications")
+  const alerts = read("alerts")
   const unreadCount = notifications.filter(
     (notification) => !readNotificationIds.includes(notification.id),
   ).length
@@ -560,6 +562,26 @@ export default function App() {
     )?.[0]
     if (destination) navigateTo(destination)
   }
+  const handleNotificationClick = (notification: NotificationItem) => {
+    if (!readNotificationIds.includes(notification.id)) {
+      const nextIds = [...readNotificationIds, notification.id]
+      localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(nextIds))
+      setReadNotificationIds(nextIds)
+    }
+    setNotificationOpen(false)
+
+    const alertIdMatch =
+      notification.alertId ||
+      notification.title.match(/ALT-\d+/i)?.[0]?.toUpperCase()
+
+    if (alertIdMatch) {
+      clearDetailRoutes()
+      setSelectedAlertId(alertIdMatch)
+      setActive("Alert & Insiden")
+    } else {
+      navigateTo("Notifikasi & Eskalasi")
+    }
+  }
   const detailRoute: DetailRoute | null =
     active === "Inventaris Aset" && selectedAssetId
       ? "asset"
@@ -572,6 +594,10 @@ export default function App() {
   const detailParent = detailRoute
     ? detailRouteConfig[detailRoute].parent(active)
     : null
+  const selectedAlert =
+    detailRoute === "alert" && selectedAlertId
+      ? alerts.find((a) => a.id === selectedAlertId)
+      : undefined
   const currentRoute = routeConfig[active] ?? routeConfig["Pusat Kendali"]
   const pageTitle =
     detailRoute === "asset"
@@ -748,6 +774,14 @@ export default function App() {
       <PageLayout
         eyebrow={pageEyebrow}
         title={displayLabel(pageTitle)}
+        badge={
+          selectedAlert ? (
+            <StatusBadge
+              status={selectedAlert.status}
+              tone={alertStatusTone(selectedAlert.status)}
+            />
+          ) : undefined
+        }
         backTo={backTo}
         onNavigate={navigateHref}
         readOnly={Boolean(capabilities?.readOnly)}
@@ -822,15 +856,37 @@ export default function App() {
           )}
         </div>
         <div className="notification-panel__list">
-          {notifications.map((notification) => (
-            <div key={notification.id}>
-              <strong className="small-copy">{notification.title}</strong>
-              <span className="label text-muted">
-                {notification.channel} · {notification.target}
-              </span>
-              <span className="label text-muted">{notification.time}</span>
+          {notifications.length === 0 ? (
+            <div className="notification-panel__item text-muted small-copy">
+              Tidak ada notifikasi
             </div>
-          ))}
+          ) : (
+            notifications.map((notification) => {
+              const isUnread = !readNotificationIds.includes(notification.id)
+              return (
+                <button
+                  key={notification.id}
+                  type="button"
+                  className={`notification-panel__item ${isUnread ? "notification-panel__item--unread" : ""}`}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <div className="notification-panel__item-header">
+                    <strong className="small-copy">{notification.title}</strong>
+                    {isUnread && (
+                      <span
+                        className="notification-unread-dot"
+                        aria-label="Belum dibaca"
+                      />
+                    )}
+                  </div>
+                  <span className="label text-muted">
+                    {notification.channel} · {notification.target}
+                  </span>
+                  <span className="label text-muted">{notification.time}</span>
+                </button>
+              )
+            })
+          )}
         </div>
       </Drawer>
 

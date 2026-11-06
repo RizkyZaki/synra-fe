@@ -22,6 +22,7 @@ export function GlassCard({
 export function PageHeader({
   eyebrow,
   title,
+  badge,
   backTo,
   onNavigate,
   readOnly = false,
@@ -29,6 +30,7 @@ export function PageHeader({
 }: {
   eyebrow: string
   title: string
+  badge?: ReactNode
   backTo?: { label: string; href: string }
   onNavigate?: (href: string) => void
   readOnly?: boolean
@@ -53,7 +55,10 @@ export function PageHeader({
         )}
         <div>
           <span className="pretext page-heading__pretext">{eyebrow}</span>
-          <h2 className="title-h2">{title}</h2>
+          <div className="page-heading__title-row">
+            <h2 className="title-h2">{title}</h2>
+            {badge}
+          </div>
           {readOnly && (
             <span className="page-heading__access">Akses baca saja</span>
           )}
@@ -67,6 +72,7 @@ export function PageHeader({
 export function PageLayout({
   eyebrow,
   title,
+  badge,
   backTo,
   onNavigate,
   readOnly = false,
@@ -75,6 +81,7 @@ export function PageLayout({
 }: {
   eyebrow: string
   title: string
+  badge?: ReactNode
   backTo?: { label: string; href: string }
   onNavigate?: (href: string) => void
   readOnly?: boolean
@@ -86,6 +93,7 @@ export function PageLayout({
       <PageHeader
         eyebrow={eyebrow}
         title={title}
+        badge={badge}
         backTo={backTo}
         onNavigate={onNavigate}
         readOnly={readOnly}
@@ -133,13 +141,8 @@ export function KpiCard({
         <strong className="bigcopy">{value}</strong>
         <span className="kpi-card__tag">{tag}</span>
       </div>
-      <span className="kpi-card__description" title={description}>
-        {description}
-      </span>
       <div className="kpi-card__note">
-        <span className="kpi-card__note-copy" title={note}>
-          {note}
-        </span>
+        <span className="kpi-card__note-copy" title={note}>{note}</span>
         <button
           className="kpi-card__link"
           onClick={(event) => {
@@ -468,7 +471,9 @@ export function Drawer({
             <span className="sr-only">Tutup</span>
           </button>
         </div>
-        {children}
+        <div className="drawer__body">
+          {children}
+        </div>
       </aside>
     </div>
   )

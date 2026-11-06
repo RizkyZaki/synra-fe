@@ -819,8 +819,10 @@ select:focus-visible {
 
 .kpi-card {
   display: grid;
+  min-width: 0;
   gap: 8px;
   padding: 18px;
+  overflow: hidden;
 }
 
 .kpi-card__top {
@@ -846,11 +848,10 @@ select:focus-visible {
 
 .kpi-card__note {
   display: flex;
-  height: 42px;
   align-items: center;
   gap: 8px;
   padding-top: 10px;
-  margin-top: 3px;
+  margin-top: 6px;
   border-top: 1px solid var(--glass-divider);
 }
 
@@ -879,6 +880,7 @@ select:focus-visible {
   font-size: 13px;
   font-weight: 600;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .kpi-card--tone-good .kpi-card__value {
@@ -1062,8 +1064,11 @@ select:focus-visible {
   top: 12px;
   right: 12px;
   bottom: 12px;
+  display: flex;
+  flex-direction: column;
   width: min(390px, calc(100vw - 24px));
   padding: 20px;
+  overflow: hidden;
   transform: translateX(calc(100% + 24px));
   transition: transform 220ms ease;
 }
@@ -1110,6 +1115,39 @@ select:focus-visible {
 .drawer__logout {
   width: 100%;
   margin-top: 18px;
+}
+
+.drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.drawer__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.drawer__body::-webkit-scrollbar-track,
+.drawer__body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.drawer__body::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.drawer__body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.drawer__body::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .loading-state {
@@ -1604,6 +1642,18 @@ select:focus-visible {
 
 .page-heading--administration {
   align-items: flex-start;
+}
+
+.page-heading__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-heading__title-row .badge {
+  font-size: 11px;
+  padding: 4px 10px;
 }
 
 .page-heading__copy {
@@ -2153,9 +2203,9 @@ select:focus-visible {
 }
 
 .dashboard-kpis .bigcopy {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
-  line-height: 32px;
+  line-height: 24px;
 }
 
 .dashboard-card {
@@ -3632,11 +3682,55 @@ select:focus-visible {
   display: grid;
 }
 
-.notification-panel__list > div {
+.notification-panel__item {
   display: grid;
+  width: 100%;
   gap: 5px;
-  padding: 15px 0;
+  padding: 14px 6px;
+  border: 0;
   border-bottom: 1px solid var(--glass-divider);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.notification-panel__item:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+.notification-panel__item:active {
+  background: rgb(255 255 255 / 14%);
+  transform: scale(0.995);
+}
+
+:root[data-theme="light"] .notification-panel__item:hover {
+  background: rgb(0 0 0 / 5%);
+}
+
+:root[data-theme="light"] .notification-panel__item:active {
+  background: rgb(0 0 0 / 8%);
+  transform: scale(0.995);
+}
+
+.notification-panel__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notification-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-500);
+  box-shadow: 0 0 8px rgb(255 179 112 / 60%);
+  flex-shrink: 0;
 }
 
 .location-pills {
@@ -4789,15 +4883,45 @@ textarea {
   margin-right: auto;
 }
 
-/* Tag dan tautan KPI tidak boleh terpotong. */
+/* KPI: nilai & tag rapi dalam kontainer sempit sekalipun. */
+.kpi-card__value {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
 .kpi-card__value .bigcopy {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kpi-card__tag,
 .kpi-card__link {
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* Description row: satu baris, potong kalau kepanjangan. */
+.kpi-card__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Note row: note-copy fill sisa ruang & potong, link tidak menyusut. */
+.kpi-card__note {
+  overflow: hidden;
+}
+
+.kpi-card__note-copy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-card__link {
+  flex-shrink: 0;
 }
 
 /* Daftar prioritas digulir agar tinggi panel sejajar dengan grafik utilisasi. */

@@ -99,6 +99,7 @@ export interface RenewalRequest {
 
 export interface NotificationItem {
   id: string
+  alertId?: string
   title: string
   channel: string
   target: string

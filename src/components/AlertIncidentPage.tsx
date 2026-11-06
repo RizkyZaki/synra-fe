@@ -31,7 +31,7 @@ const statusLabels: Record<AlertStatus, string> = {
   Ditutup: "Ditutup",
 }
 
-function alertStatusTone(status: AlertStatus) {
+export function alertStatusTone(status: AlertStatus) {
   if (status === "Ditutup") return "success" as const
   if (status === "Baru") return "danger" as const
   if (status === "Dalam Penanganan" || status === "Menunggu Review") {
@@ -215,12 +215,6 @@ export default function AlertIncidentPage({
   if (selected) {
     return (
       <div className="alert-detail">
-        <div className="asset-detail__header">
-          <StatusBadge
-            status={selected.status}
-            tone={alertStatusTone(selected.status)}
-          />
-        </div>
         <GlassCard className="alert-detail__summary">
           <div>
             <span className="pretext">{selected.id}</span>
