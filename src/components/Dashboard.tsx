@@ -149,21 +149,41 @@ function UtilizationChart() {
     disk: true,
   })
   const { data, error } = useUtilization(period)
-  const width = 760
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   const height = 260
-  const left = 52
   const top = 18
-  const chartWidth = 688
   const chartHeight = 188
-  const padX = 24
-  const plotLeft = left + padX
-  const plotWidth = chartWidth - padX * 2
-  const step = plotWidth / Math.max(data.length - 1, 1)
+  const yAxisWidth = 46
+
+  // Batasi agar 1 view layar menampilkan sekitar 6 jam (step ~105px).
+  // Dengan 24 jam (25 titik), grafik melebar dan bisa di-scroll horizontal tanpa berdempetan.
+  const isScrollable = data.length > 6
+  const baseStep = period === "24 jam" ? 105 : 95
+  const pointsCount = Math.max(data.length - 1, 1)
+  const padX = 28
+  const plotSvgWidth = isScrollable
+    ? padX * 2 + pointsCount * baseStep
+    : 640
+  const step = isScrollable
+    ? baseStep
+    : (plotSvgWidth - padX * 2) / pointsCount
+
   const x = (index: number) =>
-    data.length === 1 ? plotLeft + plotWidth / 2 : plotLeft + step * index
+    data.length === 1 ? plotSvgWidth / 2 : padX + step * index
   const y = (value: number) => top + ((100 - value) / 100) * chartHeight
+
+  const barWidth = isScrollable ? 22 : Math.min(24, step * 0.48)
+
   const linePoints = (metric: "cpu" | "memory") =>
     data.map((point, index) => `${x(index)},${y(point[metric])}`).join(" ")
+
+  // Auto scroll ke ujung kanan (waktu terbaru) saat data 24 jam dimuat atau periode berubah
+  useEffect(() => {
+    if (scrollRef.current && isScrollable) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+    }
+  }, [period, data.length, isScrollable])
 
   return (
     <GlassCard className="dashboard-card utilization-card">
@@ -213,112 +233,143 @@ function UtilizationChart() {
         <p className="small-copy text-muted">Belum ada data metrik pada periode ini.</p>
       )}
       <div className="chart-shell">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={`Grafik utilisasi periode ${period}`}
-        >
-          {[0, 25, 50, 75, 100].map((tick) => {
-            const tickY = y(tick)
-            return (
-              <g key={tick}>
-                <line
-                  x1={left}
-                  x2={left + chartWidth}
-                  y1={tickY}
-                  y2={tickY}
-                  className="chart-gridline"
-                />
-                <text x={left - 12} y={tickY + 4} className="chart-axis-label">
-                  {tick}%
-                </text>
-              </g>
-            )
-          })}
-
-          {visible.disk &&
-            data.map((point, index) => (
-              <rect
-                key={`disk-${index}`}
-                x={x(index) - Math.min(12, step * 0.24)}
-                y={y(point.disk)}
-                width={Math.min(24, step * 0.48)}
-                height={top + chartHeight - y(point.disk)}
-                rx="4"
-                fill={metricConfig.disk.color}
-                className="chart-bar"
-              />
-            ))}
-
-          {visible.cpu && (
-            <polyline
-              points={linePoints("cpu")}
-              fill="none"
-              stroke={metricConfig.cpu.color}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-          {visible.memory && (
-            <polyline
-              points={linePoints("memory")}
-              fill="none"
-              stroke={metricConfig.memory.color}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray="6 4"
-            />
-          )}
-
-          {data.map((point, index) => (
-            <g key={`point-${index}`}>
-              <text
-                x={x(index)}
-                y={height - 16}
-                className="chart-axis-label chart-axis-label--x"
-              >
-                {point.label} 
-              </text>
-              <rect
-                x={x(index) - step / 2}
-                y={top}
-                width={Math.max(step, 24)}
-                height={chartHeight + 30}
-                fill="transparent"
-                onMouseEnter={() => setHovered(index)}
-                onMouseLeave={() => setHovered(null)}
-              />
-            </g>
-          ))}
-
-          {hovered !== null && (
-         
-            <g
-              transform={`translate(${Math.min(
-                Math.max(x(hovered) - 60, left),
-                width - 140,
-              )}, 24)`}
-              className="chart-tooltip"
+        <div className="chart-wrapper">
+          {/* Sumbu Y Tetap di Kiri */}
+          <div className="chart-y-axis" aria-hidden="true">
+            <svg
+              width={yAxisWidth}
+              height={height}
+              viewBox={`0 0 ${yAxisWidth} ${height}`}
             >
-              <rect width="130" height="78" rx="10" />
-              <text x="12" y="18" className="chart-tooltip__title">
-                {data[hovered].label}
-              </text>
-              <text x="12" y="36">
-                CPU {data[hovered].cpu}%
-              </text>
-              <text x="12" y="53">
-                Memory {data[hovered].memory}%
-              </text>
-              <text x="12" y="70">
-                Disk {data[hovered].disk}%
-              </text>
-            </g>
-          )}
+              {[0, 25, 50, 75, 100].map((tick) => {
+                const tickY = y(tick)
+                return (
+                  <text
+                    key={tick}
+                    x={yAxisWidth - 8}
+                    y={tickY + 4}
+                    className="chart-axis-label"
+                  >
+                    {tick}%
+                  </text>
+                )
+              })}
+            </svg>
+          </div>
 
-        </svg>
+          {/* Area Grafik yang Bisa Di-scroll Horizontal */}
+          <div className="chart-scroll" ref={scrollRef}>
+            <svg
+              width={plotSvgWidth}
+              height={height}
+              viewBox={`0 0 ${plotSvgWidth} ${height}`}
+              role="img"
+              aria-label={`Grafik utilisasi periode ${period}`}
+            >
+              {/* Garis Grid Horizontal */}
+              {[0, 25, 50, 75, 100].map((tick) => {
+                const tickY = y(tick)
+                return (
+                  <line
+                    key={tick}
+                    x1={0}
+                    x2={plotSvgWidth}
+                    y1={tickY}
+                    y2={tickY}
+                    className="chart-gridline"
+                  />
+                )
+              })}
+
+              {/* Batang Disk */}
+              {visible.disk &&
+                data.map((point, index) => (
+                  <rect
+                    key={`disk-${index}`}
+                    x={x(index) - barWidth / 2}
+                    y={y(point.disk)}
+                    width={barWidth}
+                    height={top + chartHeight - y(point.disk)}
+                    rx="4"
+                    fill={metricConfig.disk.color}
+                    className="chart-bar"
+                  />
+                ))}
+
+              {/* Garis CPU */}
+              {visible.cpu && (
+                <polyline
+                  points={linePoints("cpu")}
+                  fill="none"
+                  stroke={metricConfig.cpu.color}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+
+              {/* Garis Memory */}
+              {visible.memory && (
+                <polyline
+                  points={linePoints("memory")}
+                  fill="none"
+                  stroke={metricConfig.memory.color}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="6 4"
+                />
+              )}
+
+              {/* Titik & Label Jam Sumbu X */}
+              {data.map((point, index) => (
+                <g key={`point-${index}`}>
+                  <text
+                    x={x(index)}
+                    y={height - 16}
+                    className="chart-axis-label chart-axis-label--x"
+                  >
+                    {point.label}
+                  </text>
+                  <rect
+                    x={x(index) - step / 2}
+                    y={top}
+                    width={step}
+                    height={chartHeight + 30}
+                    fill="transparent"
+                    onMouseEnter={() => setHovered(index)}
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                </g>
+              ))}
+
+              {/* Tooltip Saat Hover */}
+              {hovered !== null && data[hovered] && (
+                <g
+                  transform={`translate(${Math.min(
+                    Math.max(x(hovered) - 65, 8),
+                    plotSvgWidth - 138,
+                  )}, 24)`}
+                  className="chart-tooltip"
+                >
+                  <rect width="130" height="78" rx="10" />
+                  <text x="12" y="18" className="chart-tooltip__title">
+                    {data[hovered].label}
+                  </text>
+                  <text x="12" y="36">
+                    CPU {data[hovered].cpu}%
+                  </text>
+                  <text x="12" y="53">
+                    Memory {data[hovered].memory}%
+                  </text>
+                  <text x="12" y="70">
+                    Disk {data[hovered].disk}%
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+        </div>
       </div>
     </GlassCard>
   )
