@@ -5,9 +5,10 @@ import { login } from "../lib/auth"
 import type { SessionUser } from "../lib/useAccess"
 import { FormField } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 const iconProps = {
-  size: 20,
+  size: 18,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -59,40 +60,41 @@ export default function LoginPage({
             alt="SYNRA"
             className="login-logo"
           />
-          <h1 id="login-title" className="title-h3">
+          <h1 id="login-title" className="type-page-title">
             Masuk
           </h1>
-          <p className="small-copy text-muted">Infrastructure Intelligence</p>
+          <p className="type-meta text-muted-foreground">Infrastructure Intelligence</p>
         </div>
 
         <form className="login-form" onSubmit={submit} noValidate>
           <FormField label="Username" error={errors.username}>
-            <span className="login-input">
-              <input
-                type="text"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="Masukkan username"
-                autoComplete="username"
-                autoCapitalize="none"
-                aria-invalid={Boolean(errors.username)}
-              />
-            </span>
+            <Input
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Masukkan username"
+              autoComplete="username"
+              autoCapitalize="none"
+              aria-invalid={Boolean(errors.username)}
+            />
           </FormField>
 
           <FormField label="Kata sandi" error={errors.password}>
-            <span className="login-input">
-              <input
+            <div className="relative w-full">
+              <Input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Masukkan kata sandi"
                 autoComplete="current-password"
                 aria-invalid={Boolean(errors.password)}
+                className="pr-10"
               />
-              <button
+              <Button
                 type="button"
-                className="login-input__action"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 size-7 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowPassword((current) => !current)}
                 aria-label={
                   showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
@@ -103,13 +105,13 @@ export default function LoginPage({
                 ) : (
                   <Eye {...iconProps} />
                 )}
-              </button>
-            </span>
+              </Button>
+            </div>
           </FormField>
 
           <button
             type="button"
-            className="forgot-password"
+            className="forgot-password type-meta"
             onClick={() =>
               setFormError("Hubungi administrator untuk pemulihan akses")
             }
@@ -118,7 +120,7 @@ export default function LoginPage({
           </button>
 
           {formError && (
-            <div className="login-error small-copy" role="alert">
+            <div className="login-error type-meta" role="alert">
               {formError}
             </div>
           )}
@@ -137,7 +139,7 @@ export default function LoginPage({
             )}
           </Button>
 
-          <div className="login-divider">
+          <div className="login-divider type-meta">
             <span>atau lanjutkan dengan</span>
           </div>
 

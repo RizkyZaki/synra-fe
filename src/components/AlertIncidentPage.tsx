@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
@@ -7,14 +7,20 @@ import type { AlertItem, AlertStatus } from "../lib/synraDomain"
 import {
   ApiErrorBanner,
   DataTable,
+  FilterField,
   FormField,
   GlassCard,
+  PageToolbar,
+  Pagination,
   SeverityBadge,
   StatusBadge,
   Toast,
+  usePagination,
   type DataTableColumn,
 } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -22,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 const statusFlow: AlertStatus[] = [
   "Baru",
@@ -81,7 +88,7 @@ function WorkflowForm({
       }}
     >
       <FormField label="Catatan">
-        <textarea
+        <Textarea
           value={note}
           onChange={(event) => setNote(event.target.value)}
           rows={3}
@@ -90,7 +97,7 @@ function WorkflowForm({
       </FormField>
       {requireEvidence && (
         <FormField label="Bukti remediasi">
-          <input
+          <Input
             value={evidence}
             onChange={(event) => setEvidence(event.target.value)}
             placeholder="Referensi tiket, log, atau bukti validasi"
@@ -98,7 +105,7 @@ function WorkflowForm({
         </FormField>
       )}
       {error && (
-        <p className="asset-form__error small-copy" role="alert">
+        <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -142,6 +149,16 @@ export default function AlertIncidentPage({
       ),
     [alerts, severityFilter, statusFilter],
   )
+
+  const {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows,
+    paginatedRows,
+  } = usePagination(filtered, 10)
 
   /** Perubahan status dikirim ke backend; backend memvalidasi alur, role, dan mencatat audit. */
   const changeStatus = async (
@@ -224,21 +241,21 @@ export default function AlertIncidentPage({
       <div className="alert-detail">
         <GlassCard className="alert-detail__summary">
           <div>
-            <span className="pretext">{selected.id}</span>
-            <h3 className="title-h3">{selected.name}</h3>
-            <p className="bodycopy text-muted">
+            <span className="type-label text-muted-foreground">{selected.id}</span>
+            <h3 className="type-page-title">{selected.name}</h3>
+            <p className="type-meta text-muted-foreground">
               {selected.hostname} · {selected.component} · PIC {selected.pic}
             </p>
-            <p className="bodycopy text-muted">
+            <p className="type-meta text-muted-foreground">
               Nilai terakhir {selected.value?.toLocaleString("id-ID")} (batas{" "}
               {selected.threshold?.toLocaleString("id-ID")}) · terdeteksi {selected.createdAt}
               {selected.conditionActive === false && " · kondisi sudah normal kembali"}
             </p>
-            <p className="bodycopy">
+            <p className="type-body mt-2">
               <strong>Rekomendasi:</strong> {selected.recommendation}
             </p>
             {selected.closeNote && (
-              <p className="bodycopy">
+              <p className="type-body mt-1">
                 <strong>Catatan penutupan:</strong> {selected.closeNote}
               </p>
             )}
@@ -248,22 +265,22 @@ export default function AlertIncidentPage({
 
         <div className="alert-detail__grid">
           <GlassCard className="alert-timeline">
-            <div className="section-heading">
-              <span className="pretext">TIMELINE</span>
-              <h3 className="title-h3">Riwayat Penanganan</h3>
+            <div className="section-heading mb-4">
+              <span className="type-label text-muted-foreground">TIMELINE</span>
+              <h3 className="type-card-title">Riwayat Penanganan</h3>
             </div>
             <div className="timeline-list">
               {events.map((event) => (
-                <div key={event.id}>
-                  <strong className="small-copy">
+                <div key={event.id} className="flex flex-col gap-1 pb-3">
+                  <strong className="type-body font-medium">
                     {ALERT_EVENT_LABEL[event.action] ?? event.action}
                     {event.fromStatus ? ` · ${STATUS_TO_FE[event.fromStatus]} → ${STATUS_TO_FE[event.toStatus]}` : ""}
                   </strong>
-                  {event.note && <span className="label text-muted">{event.note}</span>}
+                  {event.note && <span className="type-body text-foreground">{event.note}</span>}
                   {event.evidence && (
-                    <span className="label text-muted">Bukti: {event.evidence}</span>
+                    <span className="type-body text-foreground">Bukti: {event.evidence}</span>
                   )}
-                  <span className="label text-muted">
+                  <span className="type-meta text-muted-foreground">
                     {event.actorUsername} · {formatDateTime(event.createdAt)}
                   </span>
                 </div>
@@ -272,15 +289,15 @@ export default function AlertIncidentPage({
           </GlassCard>
 
           <GlassCard className="alert-workflow">
-            <div className="section-heading">
-              <span className="pretext">TINDAKAN</span>
-              <h3 className="title-h3">Alur Status</h3>
+            <div className="section-heading mb-4">
+              <span className="type-label text-muted-foreground">TINDAKAN</span>
+              <h3 className="type-card-title">Alur Status</h3>
             </div>
-            <div className="status-flow">
+            <div className="status-flow mb-6">
               {statusFlow.map((status) => (
                 <span
                   key={status}
-                  className={status === selected.status ? "current" : ""}
+                  className={cn("type-body", status === selected.status ? "current" : "")}
                 >
                   {statusLabels[status]}
                 </span>
@@ -320,7 +337,7 @@ export default function AlertIncidentPage({
               />
             )}
             {selected.status === "Menunggu Review" && canApprove && (
-              <>
+              <div className="flex flex-col gap-4">
                 <WorkflowForm
                   title="Kembalikan"
                   allowed={canApprove}
@@ -335,10 +352,10 @@ export default function AlertIncidentPage({
                     changeStatus(selected, "close", "Ditutup", note)
                   }
                 />
-              </>
+              </div>
             )}
             {selected.status === "Ditutup" && (
-              <p className="bodycopy text-muted">
+              <p className="type-body text-muted-foreground">
                 Alert telah ditutup dan tidak memerlukan tindakan lanjutan.
               </p>
             )}
@@ -358,51 +375,80 @@ export default function AlertIncidentPage({
     <div className="alert-page">
       <ApiErrorBanner message={error} />
       <GlassCard className="alert-table">
-        <div className="alert-toolbar">
-          <div className="inventory-filters alert-filters">
-            <label>
-              <span className="label">Severity</span>
-              <select
-                value={severityFilter}
-                onChange={(event) => setSeverityFilter(event.target.value)}
-              >
-                <option>Semua</option>
-                <option value="Normal">Normal</option>
-                <option value="Info">Info</option>
-                <option value="Low">Rendah</option>
-                <option value="Medium">Sedang</option>
-                <option value="High">Tinggi</option>
-                <option value="Critical">Kritis</option>
-              </select>
-            </label>
-            <label>
-              <span className="label">Status</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-              >
-                <option>Semua</option>
+        <PageToolbar
+          actions={
+            <Button
+              onClick={() => void evaluateEws()}
+              {...restrictedAction(canConfig && !busy)}
+            >
+              Evaluasi EWS
+            </Button>
+          }
+        >
+          <FilterField label="Severity" className="w-[160px]">
+            <Select
+              value={severityFilter}
+              onValueChange={(value) => {
+                setSeverityFilter(value ?? "Semua")
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                <SelectItem value="Normal">Normal</SelectItem>
+                <SelectItem value="Info">Info</SelectItem>
+                <SelectItem value="Low">Rendah</SelectItem>
+                <SelectItem value="Medium">Sedang</SelectItem>
+                <SelectItem value="High">Tinggi</SelectItem>
+                <SelectItem value="Critical">Kritis</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Status" className="w-[180px]">
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value ?? "Semua")
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
                 {statusFlow.map((status) => (
-                  <option key={status} value={status}>
+                  <SelectItem key={status} value={status}>
                     {statusLabels[status]}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-            </label>
-          </div>
-          <Button
-            onClick={() => void evaluateEws()}
-            {...restrictedAction(canConfig && !busy)}
-          >
-            Evaluasi EWS
-          </Button>
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </PageToolbar>
+
+        <div className="mt-4">
+          <DataTable
+            columns={columns}
+            rows={paginatedRows}
+            rowKey={(alert) => alert.id}
+            rowSeverity={(alert) => alert.severity}
+            onRowClick={(alert) => onSelectedIdChange(alert.id)}
+          />
         </div>
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          rowKey={(alert) => alert.id}
-          rowSeverity={(alert) => alert.severity}
-          onRowClick={(alert) => onSelectedIdChange(alert.id)}
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          itemLabel="alert"
         />
       </GlassCard>
       <Toast

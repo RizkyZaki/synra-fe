@@ -9,14 +9,19 @@ import {
   ApiErrorBanner,
   DataTable,
   Drawer,
+  FilterField,
   FormField,
   GlassCard,
+  PageToolbar,
+  Pagination,
   SeverityBadge,
   StatusBadge,
   Toast,
+  usePagination,
   type DataTableColumn,
 } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -26,12 +31,10 @@ import {
 } from "@/components/ui/select"
 
 const iconProps = {
-  size: 20,
+  size: 18,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
-
-const PAGE_SIZE = 10
 
 type AssetForm = Required<Omit<AssetInput, "supervisorInputId" | "supervisorUpdateId">> & {
   supervisorId: string
@@ -64,7 +67,7 @@ function formatUptime(ms: number | null | undefined) {
 function MetricBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="metric-mini">
-      <div>
+      <div className="type-meta">
         <span>{label}</span>
         <span>{value.toLocaleString("id-ID")}%</span>
       </div>
@@ -150,7 +153,7 @@ function AssetFormDrawer({
         }}
       >
         <FormField label="Hostname" hint="Harus sama dengan host.name di Metricbeat">
-          <input
+          <Input
             value={form.hostname}
             onChange={(event) => updateField("hostname", event.target.value)}
             placeholder="cbs-app-jtg-01"
@@ -158,7 +161,7 @@ function AssetFormDrawer({
           />
         </FormField>
         <FormField label="Alamat IP">
-          <input
+          <Input
             value={form.ipAddress}
             onChange={(event) => updateField("ipAddress", event.target.value)}
             placeholder="10.10.1.11"
@@ -166,7 +169,7 @@ function AssetFormDrawer({
           />
         </FormField>
         <FormField label="Komponen">
-          <input
+          <Input
             list="asset-components"
             value={form.component}
             onChange={(event) => updateField("component", event.target.value)}
@@ -215,7 +218,7 @@ function AssetFormDrawer({
         </FormField>
 
         <FormField label="Tipe" hint="Mis. CPU untuk hardware, VM untuk software">
-          <input
+          <Input
             list="asset-types"
             value={form.type}
             onChange={(event) => updateField("type", event.target.value)}
@@ -248,7 +251,7 @@ function AssetFormDrawer({
         </FormField>
 
         <FormField label="PIC">
-          <input
+          <Input
             value={form.picName}
             onChange={(event) => updateField("picName", event.target.value)}
             placeholder="Tim penanggung jawab"
@@ -256,21 +259,21 @@ function AssetFormDrawer({
           />
         </FormField>
         <FormField label="Kontak PIC (opsional)">
-          <input
+          <Input
             value={form.picContact}
             onChange={(event) => updateField("picContact", event.target.value)}
             placeholder="Telepon atau username Telegram"
           />
         </FormField>
         <FormField label="Catatan (opsional)">
-          <input
+          <Input
             value={form.notes}
             onChange={(event) => updateField("notes", event.target.value)}
           />
         </FormField>
 
         {error && (
-          <p className="asset-form__error small-copy" role="alert">
+          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
             {error}
           </p>
         )}
@@ -319,34 +322,34 @@ function AssetDetail({
 
       <GlassCard className="asset-summary">
         <div>
-          <span className="pretext">{asset.ipAddress}</span>
-          <h3 className="title-h3">{asset.name}</h3>
-          <p className="bodycopy text-muted">{asset.note || "Tanpa catatan"}</p>
+          <span className="type-label text-muted-foreground">{asset.ipAddress}</span>
+          <h3 className="type-card-title">{asset.name}</h3>
+          <p className="type-body text-muted-foreground">{asset.note || "Tanpa catatan"}</p>
         </div>
         <dl className="asset-summary__meta">
           <div>
-            <dt>Komponen</dt>
-            <dd>{asset.type}</dd>
+            <dt className="type-label text-muted-foreground">Komponen</dt>
+            <dd className="type-body">{asset.type}</dd>
           </div>
           <div>
-            <dt>Host</dt>
-            <dd>{asset.location}</dd>
+            <dt className="type-label text-muted-foreground">Host</dt>
+            <dd className="type-body">{asset.location}</dd>
           </div>
           <div>
-            <dt>Kategori</dt>
-            <dd>{asset.category ? CATEGORY_LABEL[asset.category] : "—"}</dd>
+            <dt className="type-label text-muted-foreground">Kategori</dt>
+            <dd className="type-body">{asset.category ? CATEGORY_LABEL[asset.category] : "—"}</dd>
           </div>
           <div>
-            <dt>Tipe</dt>
-            <dd>{asset.assetType ?? "—"}</dd>
+            <dt className="type-label text-muted-foreground">Tipe</dt>
+            <dd className="type-body">{asset.assetType ?? "—"}</dd>
           </div>
           <div>
-            <dt>PIC</dt>
-            <dd>{asset.pic}</dd>
+            <dt className="type-label text-muted-foreground">PIC</dt>
+            <dd className="type-body">{asset.pic}</dd>
           </div>
           <div>
-            <dt>Status</dt>
-            <dd>
+            <dt className="type-label text-muted-foreground">Status</dt>
+            <dd className="type-body">
               <StatusBadge
                 status={asset.status}
                 tone={statusTone(asset.status)}
@@ -354,46 +357,46 @@ function AssetDetail({
             </dd>
           </div>
           <div>
-            <dt>Severity</dt>
-            <dd>
+            <dt className="type-label text-muted-foreground">Severity</dt>
+            <dd className="type-body">
               <SeverityBadge severity={asset.severity} />
             </dd>
           </div>
           <div>
-            <dt>Data terakhir</dt>
-            <dd>{formatDateTime(asset.lastSeenAt ?? null)}</dd>
+            <dt className="type-label text-muted-foreground">Data terakhir</dt>
+            <dd className="type-body">{formatDateTime(asset.lastSeenAt ?? null)}</dd>
           </div>
           <div>
-            <dt>User input</dt>
-            <dd>{asset.userInput ?? "—"}</dd>
+            <dt className="type-label text-muted-foreground">User input</dt>
+            <dd className="type-body">{asset.userInput ?? "—"}</dd>
           </div>
           <div>
-            <dt>Waktu input</dt>
-            <dd>{formatDateTime(asset.dtimeInput ?? null)}</dd>
+            <dt className="type-label text-muted-foreground">Waktu input</dt>
+            <dd className="type-body">{formatDateTime(asset.dtimeInput ?? null)}</dd>
           </div>
           <div>
-            <dt>Supervisor input</dt>
-            <dd>{asset.supervisorInput ?? "—"}</dd>
+            <dt className="type-label text-muted-foreground">Supervisor input</dt>
+            <dd className="type-body">{asset.supervisorInput ?? "—"}</dd>
           </div>
           <div>
-            <dt>User update</dt>
-            <dd>{asset.userUpdate ?? "—"}</dd>
+            <dt className="type-label text-muted-foreground">User update</dt>
+            <dd className="type-body">{asset.userUpdate ?? "—"}</dd>
           </div>
           <div>
-            <dt>Waktu update</dt>
-            <dd>{formatDateTime(asset.timeUpdate ?? null)}</dd>
+            <dt className="type-label text-muted-foreground">Waktu update</dt>
+            <dd className="type-body">{formatDateTime(asset.timeUpdate ?? null)}</dd>
           </div>
           <div>
-            <dt>Supervisor update</dt>
-            <dd>{asset.supervisorUpdate ?? "—"}</dd>
+            <dt className="type-label text-muted-foreground">Supervisor update</dt>
+            <dd className="type-body">{asset.supervisorUpdate ?? "—"}</dd>
           </div>
         </dl>
       </GlassCard>
 
       <div className="asset-detail__grid">
         <GlassCard className="asset-detail__section">
-          <span className="pretext">METRIK</span>
-          <h3 className="title-h3">Utilisasi Saat Ini</h3>
+          <span className="type-label text-muted-foreground">METRIK</span>
+          <h3 className="type-card-title">Utilisasi Saat Ini</h3>
           <div className="asset-detail__metrics">
             <MetricBar label="CPU" value={asset.cpu} />
             <MetricBar label="Memory" value={asset.memory} />
@@ -402,39 +405,39 @@ function AssetDetail({
         </GlassCard>
 
         <GlassCard className="asset-detail__section">
-          <span className="pretext">DISK &amp; HOST</span>
-          <h3 className="title-h3">Mount point</h3>
+          <span className="type-label text-muted-foreground">DISK &amp; HOST</span>
+          <h3 className="type-card-title">Mount point</h3>
           <div className="asset-detail__metrics">
             {(asset.disks ?? []).map((disk) => (
               <MetricBar key={disk.mountPoint} label={disk.mountPoint} value={disk.value} />
             ))}
             {(asset.disks ?? []).length === 0 && (
-              <p className="bodycopy text-muted">Belum ada data disk.</p>
+              <p className="type-body text-muted-foreground">Belum ada data disk.</p>
             )}
           </div>
-          <p className="bodycopy-em text-muted">
+          <p className="type-meta text-muted-foreground">
             Uptime {formatUptime(asset.uptimeMs)} · log ERROR periode terakhir: {asset.logErrors ?? "—"}
           </p>
         </GlassCard>
 
         <GlassCard className="asset-detail__section asset-detail__history">
-          <span className="pretext">ALERT</span>
-          <h3 className="title-h3">Riwayat Alert</h3>
+          <span className="type-label text-muted-foreground">ALERT</span>
+          <h3 className="type-card-title">Riwayat Alert</h3>
           {history.length > 0 ? (
             <div className="detail-history">
               {history.map((alert) => (
                 <div key={alert.id}>
-                  <strong className="small-copy">
+                  <strong className="type-body font-medium">
                     {alert.id} · {alert.name}
                   </strong>
-                  <span className="label text-muted">
+                  <span className="type-meta text-muted-foreground">
                     {alert.severity} · {alert.status} · {alert.createdAt}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="bodycopy text-muted">
+            <p className="type-body text-muted-foreground">
               Belum ada alert untuk aset ini.
             </p>
           )}
@@ -466,7 +469,6 @@ export default function AssetInventory({
     "name",
   )
   const [ascending, setAscending] = useState(true)
-  const [page, setPage] = useState(1)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<Asset | null>(null)
   const [toastVisible, setToastVisible] = useState(false)
@@ -509,11 +511,16 @@ export default function AssetInventory({
     ascending,
   ])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const visibleRows = filtered.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
-  )
+  const {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows,
+    paginatedRows,
+  } = usePagination(filtered, 10)
+
   const selected = assets.find((asset) => asset.id === selectedId) ?? null
 
   const columns: DataTableColumn<Asset>[] = [
@@ -662,12 +669,28 @@ export default function AssetInventory({
     <div className="inventory-page">
       <ApiErrorBanner message={error} />
       <GlassCard className="inventory-panel">
-        <div className="inventory-toolbar">
-          <div className="inventory-search">
-            <label className="label" htmlFor="asset-search">
-              Pencarian
-            </label>
-            <input
+        <PageToolbar
+          actions={
+            <>
+              <Button variant="outline" onClick={exportCsv}>
+                <Download {...iconProps} />
+                Ekspor CSV
+              </Button>
+              <Button
+                {...restrictedAction(canEdit)}
+                onClick={() => {
+                  setEditing(null)
+                  setDrawerOpen(true)
+                }}
+              >
+                <Plus {...iconProps} />
+                Tambah aset
+              </Button>
+            </>
+          }
+        >
+          <FilterField label="Pencarian" className="min-w-[260px] flex-1">
+            <Input
               id="asset-search"
               value={search}
               onChange={(event) => {
@@ -676,32 +699,17 @@ export default function AssetInventory({
               }}
               placeholder="Cari hostname, IP, komponen, atau PIC"
             />
-          </div>
-          <div className="inventory-actions">
-            <Button variant="outline" onClick={exportCsv}>
-              <Download {...iconProps} />
-              Ekspor CSV
-            </Button>
-            <Button
-              {...restrictedAction(canEdit)}
-              onClick={() => {
-                setEditing(null)
-                setDrawerOpen(true)
-              }}
-            >
-              <Plus {...iconProps} />
-              Tambah aset
-            </Button>
-          </div>
-        </div>
+          </FilterField>
+        </PageToolbar>
 
-        <div className="inventory-filters">
-          {/* Filter: Komponen */}
-          <label>
-            <span className="label">Komponen</span>
+        <div className="flex flex-wrap items-end gap-3 mt-4 mb-4">
+          <FilterField label="Komponen" className="w-[140px]">
             <Select
               value={typeFilter}
-              onValueChange={(value) => { setTypeFilter(value ?? "Semua"); setPage(1) }}
+              onValueChange={(value) => {
+                setTypeFilter(value ?? "Semua")
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -709,18 +717,21 @@ export default function AssetInventory({
               <SelectContent>
                 <SelectItem value="Semua">Semua</SelectItem>
                 {types.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          {/* Filter: Kategori */}
-          <label>
-            <span className="label">Kategori</span>
+          <FilterField label="Kategori" className="w-[140px]">
             <Select
               value={categoryFilter}
-              onValueChange={(value) => { setCategoryFilter(value ?? "Semua"); setPage(1) }}
+              onValueChange={(value) => {
+                setCategoryFilter(value ?? "Semua")
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -731,14 +742,15 @@ export default function AssetInventory({
                 <SelectItem value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</SelectItem>
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          {/* Filter: Host */}
-          <label>
-            <span className="label">Host</span>
+          <FilterField label="Host" className="w-[150px]">
             <Select
               value={locationFilter}
-              onValueChange={(value) => { setLocationFilter(value ?? "Semua"); setPage(1) }}
+              onValueChange={(value) => {
+                setLocationFilter(value ?? "Semua")
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -746,18 +758,21 @@ export default function AssetInventory({
               <SelectContent>
                 <SelectItem value="Semua">Semua</SelectItem>
                 {api.hosts.map((host) => (
-                  <SelectItem key={host.id} value={host.name}>{host.name}</SelectItem>
+                  <SelectItem key={host.id} value={host.name}>
+                    {host.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          {/* Filter: Status */}
-          <label>
-            <span className="label">Status</span>
+          <FilterField label="Status" className="w-[140px]">
             <Select
               value={statusFilter}
-              onValueChange={(value) => { setStatusFilter(value ?? "Semua"); setPage(1) }}
+              onValueChange={(value) => {
+                setStatusFilter(value ?? "Semua")
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -770,14 +785,15 @@ export default function AssetInventory({
                 <SelectItem value="Nonaktif">Nonaktif</SelectItem>
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          {/* Filter: Severity */}
-          <label>
-            <span className="label">Severity</span>
+          <FilterField label="Severity" className="w-[130px]">
             <Select
               value={severityFilter}
-              onValueChange={(value) => { setSeverityFilter(value ?? "Semua"); setPage(1) }}
+              onValueChange={(value) => {
+                setSeverityFilter(value ?? "Semua")
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -792,14 +808,14 @@ export default function AssetInventory({
                 <SelectItem value="Critical">Kritis</SelectItem>
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          {/* Urutkan */}
-          <label>
-            <span className="label">Urutkan</span>
+          <FilterField label="Urutkan" className="w-[130px]">
             <Select
               value={sortBy}
-              onValueChange={(value) => setSortBy((value ?? "name") as typeof sortBy)}
+              onValueChange={(value) =>
+                setSortBy((value ?? "name") as typeof sortBy)
+              }
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -811,56 +827,34 @@ export default function AssetInventory({
                 <SelectItem value="disk">Disk</SelectItem>
               </SelectContent>
             </Select>
-          </label>
+          </FilterField>
 
-          <button
-            className="text-action inventory-sort-direction"
+          <Button
+            variant="outline"
+            className="h-[38px] px-3 font-normal"
             onClick={() => setAscending((current) => !current)}
           >
             {ascending ? "Naik" : "Turun"}
-          </button>
+          </Button>
         </div>
 
         <DataTable
           columns={columns}
-          rows={visibleRows}
+          rows={paginatedRows}
           rowKey={(asset) => asset.id}
           rowSeverity={(asset) => asset.severity}
           onRowClick={(asset) => onSelectedIdChange(asset.id)}
         />
 
-        <div className="pagination">
-          <span className="label text-muted">
-            {filtered.length} aset · 10 per halaman
-          </span>
-          <div>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Sebelumnya
-            </button>
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-              (number) => (
-                <button
-                  key={number}
-                  className={page === number ? "pagination__active" : ""}
-                  onClick={() => setPage(number)}
-                >
-                  {number}
-                </button>
-              ),
-            )}
-            <button
-              disabled={page === totalPages}
-              onClick={() =>
-                setPage((current) => Math.min(totalPages, current + 1))
-              }
-            >
-              Berikutnya
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          itemLabel="aset"
+        />
       </GlassCard>
 
       {drawerOpen && (
