@@ -11,6 +11,8 @@ import type {
 import {
   DataTable,
   Drawer,
+  Pagination,
+  usePagination,
   FormField,
   GlassCard,
   SeverityBadge,
@@ -20,6 +22,7 @@ import {
   ScopeNotice,
 } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -43,12 +46,20 @@ const typeMap: Record<LifecyclePageName, LifecycleItem["type"] | null> = {
   "Kontrak Vendor": "contracts",
 }
 
+const lifecycleCardTitles: Record<LifecyclePageName, string> = {
+  "Lifecycle OS": "Daftar Sistem Operasi",
+  "Lisensi Software": "Daftar Lisensi",
+  "Sertifikat SSL/TLS": "Daftar Sertifikat",
+  "Garansi Hardware": "Daftar Garansi",
+  "Kontrak Vendor": "Daftar Kontrak",
+}
+
 const lifecycleTitles: Record<LifecyclePageName, string> = {
-  "Lifecycle OS": "Siklus hidup OS",
-  "Lisensi Software": "Lisensi perangkat lunak",
+  "Lifecycle OS": "Siklus Hidup OS",
+  "Lisensi Software": "Lisensi Perangkat Lunak",
   "Sertifikat SSL/TLS": "Sertifikat SSL/TLS",
-  "Garansi Hardware": "Garansi perangkat keras",
-  "Kontrak Vendor": "Kontrak vendor",
+  "Garansi Hardware": "Garansi Perangkat Keras",
+  "Kontrak Vendor": "Kontrak Vendor",
 }
 
 const iconProps = {
@@ -112,7 +123,7 @@ function LifecycleEditDrawer({
         }}
       >
         <FormField label="Jumlah / kuota">
-          <input
+          <Input
             type="number"
             min="1"
             value={quantity}
@@ -120,7 +131,7 @@ function LifecycleEditDrawer({
           />
         </FormField>
         <FormField label="Terpakai / dialokasikan">
-          <input
+          <Input
             type="number"
             min="0"
             value={allocated}
@@ -128,27 +139,30 @@ function LifecycleEditDrawer({
           />
         </FormField>
         <FormField label="Tanggal expiry">
-          <input
+          <Input
             type="date"
             value={expiry}
             onChange={(event) => setExpiry(event.target.value)}
           />
         </FormField>
         <FormField label="Status">
-          <select
+          <Select
             value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as LifecycleItem["status"])
-            }
+            onValueChange={(val) => setStatus((val ?? "Aktif") as LifecycleItem["status"])}
           >
-            <option>Aktif</option>
-            <option value="Renewed">Diperpanjang</option>
-            <option value="Terminated">Dihentikan</option>
-            <option>Nonaktif</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Aktif">Aktif</SelectItem>
+              <SelectItem value="Renewed">Diperpanjang</SelectItem>
+              <SelectItem value="Terminated">Dihentikan</SelectItem>
+              <SelectItem value="Nonaktif">Nonaktif</SelectItem>
+            </SelectContent>
+          </Select>
         </FormField>
         {error && (
-          <p className="asset-form__error small-copy" role="alert">
+          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
             {error}
           </p>
         )}
@@ -185,6 +199,15 @@ export default function LifecyclePage({
         : lifecycle.filter((item) => item.type === lifecycleType),
     [lifecycle, lifecycleType],
   )
+  const {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows,
+    paginatedRows,
+  } = usePagination(items, 10)
   const [editing, setEditing] = useState(false)
   const [toast, setToast] = useState("")
   const selected =
@@ -322,8 +345,8 @@ export default function LifecyclePage({
           </Button>
         </div>
         <GlassCard className="lifecycle-detail__summary">
-          <span className="pretext">{selected.id}</span>
-          <h3 className="title-h3">{selected.name}</h3>
+          <span className="type-label text-muted-foreground">{selected.id}</span>
+          <h3 className="type-card-title">{selected.name}</h3>
           <dl className="asset-summary__meta">
             <div>
               <dt>Expiry</dt>
@@ -356,16 +379,16 @@ export default function LifecyclePage({
 
         <GlassCard className="lifecycle-requests">
           <div className="section-heading">
-            <span className="pretext">PERSETUJUAN</span>
-            <h3 className="title-h3">Pengajuan Perpanjangan</h3>
+            <span className="type-label text-muted-foreground">PERSETUJUAN</span>
+            <h3 className="type-card-title">Pengajuan Perpanjangan</h3>
           </div>
           {relatedRequests.length > 0 ? (
             <div className="request-list">
               {relatedRequests.map((request) => (
                 <div key={request.id}>
                   <div>
-                    <strong className="small-copy">{request.id}</strong>
-                    <span className="label text-muted">
+                    <strong className="type-body">{request.id}</strong>
+                    <span className="type-meta text-muted-foreground">
                       {request.requestedBy} · {request.createdAt}
                     </span>
                   </div>
@@ -375,13 +398,16 @@ export default function LifecyclePage({
                   />
                   {request.status === "Menunggu" && canApprove && (
                     <div className="request-list__actions">
-                      <button
-                        className="text-action"
+                      <Button
+                        variant="destructive-outline"
+                        size="sm"
                         onClick={() => decideRequest(request, "Ditolak")}
                       >
                         Tolak
-                      </button>
+                      </Button>
                       <Button
+                        variant="default"
+                        size="sm"
                         onClick={() => decideRequest(request, "Disetujui")}
                       >
                         Setujui
@@ -392,7 +418,7 @@ export default function LifecyclePage({
               ))}
             </div>
           ) : (
-            <p className="bodycopy text-muted">
+            <p className="type-body text-muted-foreground">
               Belum ada pengajuan untuk item ini.
             </p>
           )}
@@ -445,8 +471,8 @@ export default function LifecyclePage({
       </ScopeNotice>
       <GlassCard className="lifecycle-table">
         <div className="section-heading">
-          <span className="pretext">LIFECYCLE</span>
-          <h3 className="title-h3">{lifecycleTitles[name]}</h3>
+          <span className="type-label text-muted-foreground">LIFECYCLE</span>
+          <h3 className="type-card-title">{lifecycleCardTitles[name]}</h3>
         </div>
         {items.length > 0 ? (
           <DataTable
@@ -456,7 +482,7 @@ export default function LifecyclePage({
             onRowClick={(item) => onSelectedIdChange(item.id)}
           />
         ) : (
-          <p className="bodycopy text-muted">
+          <p className="type-body text-muted-foreground">
             Belum ada data lifecycle untuk kategori ini.
           </p>
         )}
@@ -465,32 +491,35 @@ export default function LifecyclePage({
       {pending.length > 0 && (
         <GlassCard className="lifecycle-requests">
           <div className="section-heading">
-            <span className="pretext">ADMINISTRATOR</span>
-            <h3 className="title-h3">Pengajuan Menunggu Persetujuan</h3>
+            <span className="type-label text-muted-foreground">ADMINISTRATOR</span>
+            <h3 className="type-card-title">Pengajuan Menunggu Persetujuan</h3>
           </div>
           <div className="request-list">
             {pending.map((request) => (
               <div key={request.id}>
                 <div>
-                  <strong className="small-copy">{request.itemName}</strong>
-                  <span className="label text-muted">
+                  <strong className="type-body">{request.itemName}</strong>
+                  <span className="type-meta text-muted-foreground">
                     {request.id} · {request.requestedBy}
                   </span>
                 </div>
                 <StatusBadge status={request.status} tone="warning" />
                 {canApprove && (
                   <div className="request-list__actions">
-                    <button
-                      className="text-action"
-                      onClick={() => decideRequest(request, "Ditolak")}
-                    >
-                      Tolak
-                    </button>
                     <Button
-                      onClick={() => decideRequest(request, "Disetujui")}
-                    >
-                      Setujui
-                    </Button>
+                        variant="destructive-outline"
+                        size="sm"
+                        onClick={() => decideRequest(request, "Ditolak")}
+                      >
+                        Tolak
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => decideRequest(request, "Disetujui")}
+                      >
+                        Setujui
+                      </Button>
                   </div>
                 )}
               </div>

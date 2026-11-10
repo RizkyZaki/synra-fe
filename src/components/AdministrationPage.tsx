@@ -15,6 +15,7 @@ import {
   type DataTableColumn,
 } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -22,11 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 type AdminTab = "Parameter EWS" | "Pengguna" | "Profil"
 
 const iconProps = {
-  size: 20,
+  size: 18,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -68,10 +70,10 @@ function AddUserDrawer({
         }}
       >
         <FormField label="Nama lengkap">
-          <input value={fullName} onChange={(event) => setFullName(event.target.value)} required />
+          <Input value={fullName} onChange={(event) => setFullName(event.target.value)} required />
         </FormField>
         <FormField label="Username" hint="Huruf kecil, angka, titik, garis bawah, atau strip">
-          <input
+          <Input
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoCapitalize="none"
@@ -79,7 +81,7 @@ function AddUserDrawer({
           />
         </FormField>
         <FormField label="Kata sandi" hint="Minimal 8 karakter, mengandung huruf dan angka">
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -105,7 +107,7 @@ function AddUserDrawer({
           </Select>
         </FormField>
         {error && (
-          <p className="asset-form__error small-copy" role="alert">
+          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
             {error}
           </p>
         )}
@@ -160,21 +162,21 @@ function EwsParameters() {
   return (
     <>
       <GlassCard className="ews-parameters">
-        <div className="section-heading">
-          <span className="pretext">EARLY WARNING SYSTEM</span>
-          <h3 className="title-h3">Threshold Alert ({rules.length} level)</h3>
-          <p className="small-copy text-muted">
+        <div className="section-heading mb-6">
+          <span className="type-label text-muted-foreground">EARLY WARNING SYSTEM</span>
+          <h3 className="type-card-title">Threshold Alert ({rules.length} level)</h3>
+          <p className="type-meta text-muted-foreground mt-1">
             Nilai level satu metrik harus naik sesuai urutan severity (Warning &lt; Medium &lt; High &lt; Critical).
           </p>
         </div>
         <div className="ews-grid">
           {rules.map((rule) => (
-            <label key={rule.id ?? rule.name}>
-              <span>
-                <strong className="small-copy">{rule.name}</strong>
-                <span className="label text-muted">{rule.unit}</span>
+            <label key={rule.id ?? rule.name} className="flex flex-col gap-1.5">
+              <span className="flex items-center justify-between">
+                <strong className="type-body font-medium">{rule.name}</strong>
+                <span className="type-label text-muted-foreground">{rule.unit}</span>
               </span>
-              <input
+              <Input
                 type="number"
                 min="0"
                 step="any"
@@ -187,7 +189,7 @@ function EwsParameters() {
             </label>
           ))}
         </div>
-        <div className="admin-save-row">
+        <div className="admin-save-row mt-6">
           <Button
             onClick={() => void save()}
             {...restrictedAction(canConfig && !saving)}
@@ -236,22 +238,24 @@ function UsersAdministration() {
       header: "Aksi",
       render: (user) =>
         user.id === me.id ? (
-          <span className="label text-muted">Pengguna aktif</span>
+          <span className="type-meta text-muted-foreground">Pengguna aktif</span>
         ) : (
-          <span style={{ display: "flex", gap: 12 }}>
+          <div className="flex items-center gap-2">
             {user.isLocked && (
-              <button
-                className="text-action"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={(event) => {
                   event.stopPropagation()
                   void run(() => actions.unlockUser(user.id), "Kunci akun dibuka")
                 }}
               >
                 Buka kunci
-              </button>
+              </Button>
             )}
-            <button
-              className="text-action"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={(event) => {
                 event.stopPropagation()
                 const activate = user.status === "Nonaktif"
@@ -262,8 +266,8 @@ function UsersAdministration() {
               }}
             >
               {user.status === "Nonaktif" ? "Aktifkan" : "Nonaktifkan"}
-            </button>
-          </span>
+            </Button>
+          </div>
         ),
     },
   ]
@@ -271,10 +275,10 @@ function UsersAdministration() {
   return (
     <>
       <GlassCard className="users-admin">
-        <div className="admin-section-header">
+        <div className="admin-section-header flex items-center justify-between mb-4">
           <div className="section-heading">
-            <span className="pretext">AKSES</span>
-            <h3 className="title-h3">Pengguna</h3>
+            <span className="type-label text-muted-foreground">AKSES</span>
+            <h3 className="type-card-title">Pengguna</h3>
           </div>
           <Button onClick={() => setDrawerOpen(true)}>
             <Plus {...iconProps} />
@@ -326,23 +330,23 @@ function ProfileAdministration() {
   return (
     <>
       <GlassCard className="profile-admin">
-        <div className="section-heading">
-          <span className="pretext">PROFIL</span>
-          <h3 className="title-h3">{user.username}</h3>
+        <div className="section-heading mb-4">
+          <span className="type-label text-muted-foreground">PROFIL</span>
+          <h3 className="type-card-title">{user.username}</h3>
         </div>
         <div className="profile-admin__form">
           <FormField label="Nama">
-            <input value={name} onChange={(event) => setName(event.target.value)} />
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
           </FormField>
         </div>
-        <div className="admin-save-row">
+        <div className="admin-save-row mt-4 mb-6">
           <Button onClick={() => void saveName()}>
             Simpan Nama
           </Button>
         </div>
-        <div className="profile-admin__form">
+        <div className="profile-admin__form flex flex-col gap-4">
           <FormField label="Kata sandi lama">
-            <input
+            <Input
               type="password"
               value={oldPassword}
               autoComplete="current-password"
@@ -350,7 +354,7 @@ function ProfileAdministration() {
             />
           </FormField>
           <FormField label="Kata sandi baru" hint="Minimal 8 karakter, mengandung huruf dan angka">
-            <input
+            <Input
               type="password"
               value={newPassword}
               autoComplete="new-password"
@@ -358,7 +362,7 @@ function ProfileAdministration() {
             />
           </FormField>
         </div>
-        <div className="admin-save-row">
+        <div className="admin-save-row mt-4">
           <Button onClick={() => void savePassword()}>
             Ganti Kata Sandi
           </Button>
@@ -380,7 +384,7 @@ export default function AdministrationPage() {
             key={item}
             role="tab"
             aria-selected={tab === item}
-            className={tab === item ? "admin-tabs__active" : ""}
+            className={cn("type-body", tab === item ? "admin-tabs__active" : "")}
             onClick={() => setTab(item)}
           >
             {item}

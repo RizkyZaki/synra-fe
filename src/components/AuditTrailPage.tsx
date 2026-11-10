@@ -1,11 +1,22 @@
-﻿import { Download } from "lucide-react"
+import { Download } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
 import { formatDateTime } from "../lib/backend"
 import type { AuditEntry } from "../lib/synraDomain"
-import { ApiErrorBanner, DataTable, GlassCard, Toast, type DataTableColumn } from "./ui"
+import {
+  ApiErrorBanner,
+  DataTable,
+  FilterField,
+  GlassCard,
+  PageToolbar,
+  Pagination,
+  Toast,
+  usePagination,
+  type DataTableColumn,
+} from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -15,7 +26,7 @@ import {
 } from "@/components/ui/select"
 
 const iconProps = {
-  size: 20,
+  size: 18,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -54,6 +65,16 @@ export default function AuditTrailPage() {
       )
   }, [audit, date, action, user, search])
 
+  const {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows,
+    paginatedRows,
+  } = usePagination(filtered, 10)
+
   const columns: DataTableColumn<AuditEntry>[] = [
     { key: "time", header: "Waktu", render: (entry) => formatDateTime(entry.time) },
     {
@@ -81,62 +102,101 @@ export default function AuditTrailPage() {
     <div className="audit-page">
       <ApiErrorBanner message={error} />
       <GlassCard className="audit-panel">
-        <div className="audit-toolbar">
-          <div className="audit-search">
-            <label className="label" htmlFor="audit-search">
-              Pencarian
-            </label>
-            <input
+        <PageToolbar
+          actions={
+            <Button variant="outline" onClick={() => void exportCsv()}>
+              <Download {...iconProps} />
+              Ekspor CSV
+            </Button>
+          }
+        >
+          <FilterField label="Pencarian" className="min-w-[260px] flex-1">
+            <Input
               id="audit-search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
               placeholder="Cari pengguna, tindakan, target, atau detail"
             />
-          </div>
-          <Button onClick={() => void exportCsv()}><Download {...iconProps} />Ekspor CSV</Button>
-        </div>
+          </FilterField>
+        </PageToolbar>
 
-        <div className="audit-filters">
-          <label>
-            <span className="label">Tanggal</span>
-            <input
+        <div className="flex flex-wrap items-end gap-3 mt-4 mb-4">
+          <FilterField label="Tanggal" className="w-[180px]">
+            <Input
               type="date"
               value={date}
-              onChange={(event) => setDate(event.target.value)}
+              onChange={(event) => {
+                setDate(event.target.value)
+                setPage(1)
+              }}
             />
-          </label>
-          <label>
-            <span className="label">Tindakan</span>
-            <select
+          </FilterField>
+
+          <FilterField label="Tindakan" className="w-[180px]">
+            <Select
               value={action}
-              onChange={(event) => setAction(event.target.value)}
+              onValueChange={(val) => {
+                setAction(val ?? "Semua")
+                setPage(1)
+              }}
             >
-              <option>Semua</option>
-              {actions.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="label">Pengguna</span>
-            <select
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                {actions.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Pengguna" className="w-[180px]">
+            <Select
               value={user}
-              onChange={(event) => setUser(event.target.value)}
+              onValueChange={(val) => {
+                setUser(val ?? "Semua")
+                setPage(1)
+              }}
             >
-              <option>Semua</option>
-              {users.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                {users.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
         </div>
 
         <DataTable
           columns={columns}
-          rows={filtered}
+          rows={paginatedRows}
           rowKey={(entry) => entry.id}
         />
-        <p className="label text-muted audit-count">
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          itemLabel="entri"
+        />
+
+        <p className="type-meta text-muted-foreground audit-count mt-3">
           {filtered.length} dari 100 entri terbaru · append-only (tidak dapat diubah atau dihapus)
         </p>
       </GlassCard>

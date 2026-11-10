@@ -32,13 +32,13 @@ export default function InfrastructureHealthPage() {
       <ScopeNotice>Health score tidak termasuk cakupan SYNRA. Angka di halaman ini adalah ilustrasi.</ScopeNotice>
       <GlassCard className="health-score-summary">
         <div>
-          <span className="pretext">SKOR TOTAL</span>
+          <span className="type-label text-muted-foreground">SKOR TOTAL</span>
           <strong className="health-score-summary__value">80</strong>
         </div>
         <div>
-          <span className="label text-muted">Status infrastruktur</span>
+          <span className="type-meta text-muted-foreground">Status infrastruktur</span>
           <StatusBadge status="Baik" tone="success" />
-          <p className="bodycopy text-muted">
+          <p className="type-body text-muted-foreground">
             Kondisi infrastruktur stabil dengan perhatian pada kapasitas,
             pencadangan, dan siklus hidup.
           </p>
@@ -46,27 +46,27 @@ export default function InfrastructureHealthPage() {
       </GlassCard>
 
       <GlassCard className="health-dimensions">
-        <div className="section-heading">
-          <span className="pretext">7 DIMENSI BERBOBOT</span>
-          <h3 className="title-h3">Rincian Kesehatan Infrastruktur</h3>
+        <div className="section-heading mb-4">
+          <span className="type-label text-muted-foreground">7 DIMENSI BERBOBOT</span>
+          <h3 className="type-card-title">Rincian Kesehatan Infrastruktur</h3>
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
+        <div className="table-wrap overflow-x-auto">
+          <table className="data-table w-full">
             <thead>
-              <tr>
-                <th>Dimensi</th>
-                <th>Bobot</th>
-                <th>Skor</th>
-                <th>Status</th>
+              <tr className="border-b border-border">
+                <th className="type-label text-muted-foreground text-left py-2 px-3">Dimensi</th>
+                <th className="type-label text-muted-foreground text-left py-2 px-3">Bobot</th>
+                <th className="type-label text-muted-foreground text-left py-2 px-3">Skor</th>
+                <th className="type-label text-muted-foreground text-left py-2 px-3">Status</th>
               </tr>
             </thead>
             <tbody>
               {healthDimensions.map((dimension) => (
-                <tr key={dimension.name}>
-                  <td className="strong">{dimension.name}</td>
-                  <td>{dimension.weight}%</td>
-                  <td>{dimension.score}</td>
-                  <td>
+                <tr key={dimension.name} className="border-b border-border/50">
+                  <td className="type-body font-medium py-2.5 px-3">{dimension.name}</td>
+                  <td className="type-body py-2.5 px-3">{dimension.weight}%</td>
+                  <td className="type-body py-2.5 px-3">{dimension.score}</td>
+                  <td className="type-body py-2.5 px-3">
                     <StatusBadge
                       status={dimension.status}
                       tone={statusTone[dimension.status]}

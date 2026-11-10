@@ -1,4 +1,4 @@
-﻿import { Download, Printer } from "lucide-react"
+import { Download, Printer } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError, apiFetch } from "../lib/api"
@@ -6,12 +6,15 @@ import { SEVERITY_TO_FE, STATUS_TO_FE, formatDateTime, type BackendAlertStatus, 
 import {
   ApiErrorBanner,
   DataTable,
+  FilterField,
   GlassCard,
+  PageToolbar,
   SeverityBadge,
   Toast,
   type DataTableColumn,
 } from "./ui"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -21,7 +24,7 @@ import {
 } from "@/components/ui/select"
 
 const iconProps = {
-  size: 20,
+  size: 18,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -109,7 +112,7 @@ export default function ReportsPage() {
       render: (a) => (
         <div className="table-primary">
           <strong>{a.hostname}</strong>
-          <span className="label text-muted">{a.component}</span>
+          <span className="type-meta text-muted-foreground">{a.component}</span>
         </div>
       ),
     },
@@ -135,56 +138,80 @@ export default function ReportsPage() {
   return (
     <div className="reports-page">
       <ApiErrorBanner message={error} />
-      <div className="page-actions">
-        <div className="inventory-filters">
-          <label>
-            <span className="label">Tanggal</span>
-            <input type="date" value={date} max={today()} onChange={(event) => setDate(event.target.value || today())} />
-          </label>
-          <label>
-            <span className="label">Host</span>
-            <select value={hostId} onChange={(event) => setHostId(event.target.value)}>
-              <option value="">Semua</option>
+      <PageToolbar
+        className="mb-6"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => exportFile("xlsx")} disabled={busy !== ""}>
+              <Download {...iconProps} />
+              {busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}
+            </Button>
+            <Button variant="outline" onClick={() => exportFile("pdf")} disabled={busy !== ""}>
+              <Download {...iconProps} />
+              {busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer {...iconProps} />
+              Cetak
+            </Button>
+          </>
+        }
+      >
+        <FilterField label="Tanggal" className="w-[180px]">
+          <Input
+            type="date"
+            value={date}
+            max={today()}
+            onChange={(event) => setDate(event.target.value || today())}
+          />
+        </FilterField>
+        <FilterField label="Host" className="w-[180px]">
+          <Select
+            value={hostId}
+            onValueChange={(val) => setHostId(val ?? "")}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Semua" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Semua</SelectItem>
               {api.hosts.map((host) => (
-                <option key={host.id} value={host.id}>
+                <SelectItem key={host.id} value={host.id}>
                   {host.name}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </label>
-        </div>
-        <Button variant="outline" onClick={() => exportFile("xlsx")} disabled={busy !== ""}><Download {...iconProps} />{busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}</Button>
-        <Button variant="outline" onClick={() => exportFile("pdf")} disabled={busy !== ""}><Download {...iconProps} />{busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}</Button>
-        <Button onClick={() => window.print()}><Printer {...iconProps} />Cetak</Button>
-      </div>
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </PageToolbar>
 
       <div className="executive-summary">
         <GlassCard>
-          <span className="label text-muted">Total aset</span>
+          <span className="type-meta text-muted-foreground">Total aset</span>
           <strong className="bigcopy">{s?.totalAssets ?? "—"}</strong>
-          <span className="label text-muted">Laporan {report?.date ?? date}</span>
+          <span className="type-meta text-muted-foreground">Laporan {report?.date ?? date}</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Rata-rata availability</span>
+          <span className="type-meta text-muted-foreground">Rata-rata availability</span>
           <strong className="bigcopy">{s ? pct(s.availabilityAvgPct) : "—"}</strong>
-          <span className="label text-muted">Data per menit</span>
+          <span className="type-meta text-muted-foreground">Data per menit</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Alert terdeteksi</span>
+          <span className="type-meta text-muted-foreground">Alert terdeteksi</span>
           <strong className="bigcopy">{s?.alertsDetected ?? "—"}</strong>
-          <span className="label text-muted">Pada tanggal ini</span>
+          <span className="type-meta text-muted-foreground">Pada tanggal ini</span>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Alert ditutup</span>
+          <span className="type-meta text-muted-foreground">Alert ditutup</span>
           <strong className="bigcopy">{s?.alertsClosed ?? "—"}</strong>
-          <span className="label text-muted">Pada tanggal ini</span>
+          <span className="type-meta text-muted-foreground">Pada tanggal ini</span>
         </GlassCard>
       </div>
 
       <GlassCard className="report-severity">
-        <div className="section-heading">
-          <span className="pretext">ALERT</span>
-          <h3 className="title-h3">Alert terdeteksi per severity</h3>
+        <div className="section-heading mb-4">
+          <span className="type-label text-muted-foreground">ALERT</span>
+          <h3 className="type-card-title">Alert Terdeteksi per Severity</h3>
         </div>
         <div className="severity-summary">
           {(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as BackendSeverity[]).map((severity) => (
@@ -197,20 +224,20 @@ export default function ReportsPage() {
       </GlassCard>
 
       <GlassCard className="report-risk">
-        <div className="section-heading">
-          <span className="pretext">ASET</span>
-          <h3 className="title-h3">Statistik per aset</h3>
+        <div className="section-heading mb-4">
+          <span className="type-label text-muted-foreground">ASET</span>
+          <h3 className="type-card-title">Statistik per Aset</h3>
         </div>
         <DataTable columns={assetColumns} rows={report?.assets ?? []} rowKey={(a) => a.hostname} />
       </GlassCard>
 
       <GlassCard className="report-requests">
-        <div className="section-heading">
-          <span className="pretext">ALERT</span>
-          <h3 className="title-h3">Alert pada tanggal ini</h3>
+        <div className="section-heading mb-4">
+          <span className="type-label text-muted-foreground">ALERT</span>
+          <h3 className="type-card-title">Alert pada Tanggal Ini</h3>
         </div>
         {report && report.alerts.length === 0 ? (
-          <p className="bodycopy text-muted table-empty">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
+          <p className="type-body text-muted-foreground table-empty">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
         ) : (
           <DataTable
             columns={alertColumns}

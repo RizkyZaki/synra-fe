@@ -428,7 +428,7 @@ function MobileNavigation({
       <div className="mobile-menu__panel glass-panel">
         <nav className="mobile-menu__nav" aria-label="Navigasi mobile">
           <div className="mobile-menu__group">
-            <span className="pretext">UTAMA</span>
+            <span className="type-label text-muted-foreground">UTAMA</span>
             <button
               className={`mobile-menu__item ${
                 active === dashboardItem.label
@@ -442,7 +442,7 @@ function MobileNavigation({
           </div>
           {groups.map((group) => (
             <div className="mobile-menu__group" key={group.label}>
-              <span className="pretext">{group.mobileLabel}</span>
+              <span className="type-label text-muted-foreground">{group.mobileLabel}</span>
               {group.items.map((item) => {
                 return (
                   <button
@@ -838,7 +838,7 @@ export default function App() {
         onClose={() => setNotificationOpen(false)}
       >
         <div className="notification-panel__heading">
-          <span className="label text-muted">{unreadCount} belum dibaca</span>
+          <span className="type-meta text-muted-foreground">{unreadCount} belum dibaca</span>
           {unreadCount > 0 && (
             <button
               className="text-action"
@@ -857,7 +857,7 @@ export default function App() {
         </div>
         <div className="notification-panel__list">
           {notifications.length === 0 ? (
-            <div className="notification-panel__item text-muted small-copy">
+            <div className="notification-panel__item type-meta text-muted-foreground">
               Tidak ada notifikasi
             </div>
           ) : (
@@ -871,7 +871,7 @@ export default function App() {
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="notification-panel__item-header">
-                    <strong className="small-copy">{notification.title}</strong>
+                    <strong className="type-body font-medium">{notification.title}</strong>
                     {isUnread && (
                       <span
                         className="notification-unread-dot"
@@ -892,14 +892,14 @@ export default function App() {
 
       <Drawer
         open={profileOpen}
-        title="Profil pengguna"
+        title="Profil Pengguna"
         onClose={() => setProfileOpen(false)}
       >
         <div className="drawer-profile">
           <div className="avatar avatar--large">{initials}</div>
           <div>
             <p className="strong">{currentUser.name}</p>
-            <p className="small-copy text-muted">{currentUser.email}</p>
+            <p className="type-meta text-muted-foreground">{currentUser.email}</p>
           </div>
         </div>
         <div className="drawer-details">

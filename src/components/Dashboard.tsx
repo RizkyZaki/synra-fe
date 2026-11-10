@@ -189,8 +189,8 @@ function UtilizationChart() {
     <GlassCard className="dashboard-card utilization-card">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">MONITORING</span>
-          <h3 className="title-h3">Utilisasi CPU / Memori / Disk</h3>
+          <span className="type-label text-muted-foreground">MONITORING</span>
+          <h3 className="type-card-title">Utilisasi CPU / Memori / Disk</h3>
         </div>
         <div className="period-filter" aria-label="Periode grafik">
           {(["24 jam", "7 hari", "30 hari"] as Period[]).map((option) => (
@@ -228,9 +228,9 @@ function UtilizationChart() {
         ))}
       </div>
 
-      {error && <p className="small-copy text-muted">{error}</p>}
+      {error && <p className="type-meta text-muted-foreground">{error}</p>}
       {!error && data.length === 0 && (
-        <p className="small-copy text-muted">Belum ada data metrik pada periode ini.</p>
+        <p className="type-meta text-muted-foreground">Belum ada data metrik pada periode ini.</p>
       )}
       <div className="chart-shell">
         <div className="chart-wrapper">
@@ -384,8 +384,8 @@ function AssetDistribution() {
     <GlassCard className="dashboard-card asset-distribution">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">ASET</span>
-          <h3 className="title-h3">Distribusi aset per jenis</h3>
+          <span className="type-label text-muted-foreground">ASET</span>
+          <h3 className="type-card-title">Distribusi Aset per Jenis</h3>
         </div>
       </div>
       <div className="donut-layout">
@@ -423,19 +423,19 @@ function AssetDistribution() {
             <strong className="bigcopy">
               {distribution.reduce((sum, item) => sum + item.count, 0)}
             </strong>
-            <span className="label text-muted">Aset</span>
+            <span className="type-meta text-muted-foreground">Aset</span>
           </div>
         </div>
         <div className="donut-legend">
           {distribution.map((item, index) => (
             <div key={item.type}>
               <span
-                className="small-copy"
+                className="type-body"
                 style={{ color: donutColors[index % donutColors.length] }}
               >
                 {item.type}
               </span>
-              <span className="label text-muted">
+              <span className="type-meta text-muted-foreground">
                 {item.count} · {item.pct}%
               </span>
             </div>
@@ -457,17 +457,17 @@ function AvailabilityBreakdown() {
     <GlassCard className="dashboard-card health-breakdown">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">AVAILABILITY</span>
-          <h3 className="title-h3">Availability per aset (24 jam)</h3>
+          <span className="type-label text-muted-foreground">AVAILABILITY</span>
+          <h3 className="type-card-title">Availability per Aset (24 Jam)</h3>
         </div>
       </div>
       <div className="health-list">
-        {rows.length === 0 && <p className="small-copy text-muted">Belum ada data.</p>}
+        {rows.length === 0 && <p className="type-meta text-muted-foreground">Belum ada data.</p>}
         {rows.map((row) => (
           <div className="health-row" key={row.assetId}>
             <div className="health-row__label">
-              <span className="small-copy">{row.hostname}</span>
-              <span className="label text-muted">
+              <span className="type-body">{row.hostname}</span>
+              <span className="type-meta text-muted-foreground">
                 {row.host} ·{" "}
                 {row.pct === null ? "belum ada data" : `${row.pct.toLocaleString("id-ID")}%`}
               </span>
@@ -494,8 +494,8 @@ function LocationStatus() {
     <GlassCard className="dashboard-card location-status">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">Host</span>
-          <h3 className="title-h3">Status per Host</h3>
+          <span className="type-label text-muted-foreground">HOST</span>
+          <h3 className="type-card-title">Status per Host</h3>
         </div>
       </div>
       <div className="location-status__grid">
@@ -506,7 +506,7 @@ function LocationStatus() {
           return (
             <div className="location-mini" key={host}>
               <div className="location-mini__title">
-                <strong className="small-copy">{host}</strong>
+                <strong className="type-body">{host}</strong>
               </div>
               <dl>
                 <div>
@@ -580,8 +580,8 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
     <GlassCard className="dashboard-card insight-panel">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">PRIORITAS</span>
-          <h3 className="title-h3">Prioritas hari ini</h3>
+          <span className="type-label text-muted-foreground">PRIORITAS</span>
+          <h3 className="type-card-title">Prioritas Hari Ini</h3>
         </div>
       </div>
       {priorityAlerts.length > 0 ? (
@@ -604,7 +604,7 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
                 </div>
                 <div>
                   <h4 className="strong">{alert.name}</h4>
-                  <p className="small-copy">{alert.note}</p>
+                  <p className="type-body">{alert.note}</p>
                 </div>
                 <button
                   className="insight-link"
@@ -618,10 +618,10 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
         </div>
       ) : (
         <div className="priority-empty">
-          <strong className="small-copy">
+          <strong className="type-body">
             Tidak ada alert aktif
           </strong>
-          <span className="label text-muted">Semua aman untuk saat ini</span>
+          <span className="type-meta text-muted-foreground">Semua aman untuk saat ini</span>
         </div>
       )}
     </GlassCard>
@@ -651,30 +651,30 @@ function ExecutiveSummary() {
   return (
     <GlassCard className="executive-dashboard">
       <div className="section-heading">
-        <span className="pretext">MANAJEMEN</span>
-        <h3 className="title-h3">Ringkasan eksekutif</h3>
+        <span className="type-label text-muted-foreground">MANAJEMEN</span>
+        <h3 className="type-card-title">Ringkasan Eksekutif</h3>
       </div>
       <div className="executive-dashboard__grid">
         <div>
-          <span className="label text-muted">3 alert teratas</span>
+          <span className="type-meta text-muted-foreground">3 alert teratas</span>
           {alerts.map((alert) => (
-            <span className="small-copy" key={alert.id}>
+            <span className="type-body" key={alert.id}>
               {alert.name} · {alert.severity}
             </span>
           ))}
         </div>
         <div>
-          <span className="label text-muted">Aset daring</span>
-          <strong className="small-copy">
+          <span className="type-meta text-muted-foreground">Aset daring</span>
+          <strong className="type-body">
             {online}/{assets.length}
           </strong>
         </div>
         <div>
-          <span className="label text-muted">Host stale</span>
+          <span className="type-meta text-muted-foreground">Host stale</span>
           <strong className="bigcopy">{k.stale}</strong>
         </div>
         <div>
-          <span className="label text-muted">Availability 24 jam</span>
+          <span className="type-meta text-muted-foreground">Availability 24 jam</span>
           <strong className="bigcopy">
             {k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`}
           </strong>
@@ -691,14 +691,14 @@ function AlertFunnel() {
     <GlassCard className="dashboard-card alert-funnel">
       <div className="dashboard-card__header">
         <div>
-          <h3 className="title-h3">Tahap alert</h3>
+          <h3 className="type-card-title">Tahap Alert</h3>
         </div>
       </div>
       <div className="funnel-list">
         {funnel.map((stage, index) => (
           <div className="funnel-stage" key={stage.status}>
             <span className="funnel-stage__count">{stage.count}</span>
-            <span className="label">{stage.status}</span>
+            <span className="type-meta">{stage.status}</span>
           </div>
         ))}
       </div>
@@ -716,18 +716,18 @@ function RecentActivity() {
     <GlassCard className="dashboard-card recent-activity">
       <div className="dashboard-card__header">
         <div>
-          <span className="pretext">AUDIT TRAIL</span>
-          <h3 className="title-h3">Aktivitas terbaru</h3>
+          <span className="type-label text-muted-foreground">AUDIT TRAIL</span>
+          <h3 className="type-card-title">Aktivitas Terbaru</h3>
         </div>
       </div>
       <div className="activity-list">
         {entries.map((entry) => (
           <div className="activity-item" key={entry.id}>
             <div>
-              <p className="small-copy">
+              <p className="type-body">
                 <strong>{entry.user}</strong> · {entry.action}
               </p>
-              <span className="label text-muted">
+              <span className="type-meta text-muted-foreground">
                 {entry.detail !== "—" && `${entry.detail} · `}
                 {new Intl.DateTimeFormat("id-ID", {
                   day: "2-digit",

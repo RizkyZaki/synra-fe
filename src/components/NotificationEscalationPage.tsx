@@ -6,6 +6,9 @@ import type { NotificationItem, Severity } from "../lib/synraDomain"
 import {
   ApiErrorBanner,
   DataTable,
+  Pagination,
+  SeverityBadge,
+  usePagination,
   GlassCard,
   ScopeNotice,
   StatusBadge,
@@ -57,6 +60,15 @@ export default function NotificationEscalationPage() {
   const { can } = useAccess()
   const canConfig = can("config")
   const notifications = read("notifications")
+  const {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows,
+    paginatedRows,
+  } = usePagination(notifications, 10)
   const [toast, setToast] = useState("")
 
   const sendTest = async () => {
@@ -95,9 +107,9 @@ export default function NotificationEscalationPage() {
       <ApiErrorBanner message={error} />
       <GlassCard className="notification-actions">
         <div>
-          <span className="pretext">TELEGRAM</span>
-          <h3 className="title-h3">Notifikasi Telegram</h3>
-          <p className="bodycopy text-muted">
+          <span className="type-label text-muted-foreground">TELEGRAM</span>
+          <h3 className="type-card-title">Notifikasi Telegram</h3>
+          <p className="type-body text-muted-foreground">
             Dikirim otomatis saat alert dibuat dan setiap perubahan status alert.
             {api.telegramConfigured === false &&
               " Telegram belum dikonfigurasi di server (TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID), sehingga notifikasi tercatat sebagai dilewati."}
@@ -115,8 +127,8 @@ export default function NotificationEscalationPage() {
       <GlassCard className="sla-matrix">
         <ScopeNotice>Eskalasi berjenjang tidak termasuk cakupan SYNRA. Matriks di bawah hanya referensi.</ScopeNotice>
         <div className="section-heading">
-          <span className="pretext">SLA</span>
-          <h3 className="title-h3">Matriks Eskalasi</h3>
+          <span className="type-label text-muted-foreground">SLA</span>
+          <h3 className="type-card-title">Matriks Eskalasi</h3>
         </div>
         <div className="forecast-table-wrap">
           <table className="forecast-table">
@@ -131,22 +143,7 @@ export default function NotificationEscalationPage() {
             <tbody>
               {slaMatrix.map((item) => (
                 <tr key={item.severity}>
-                  <td>
-                    <span
-                      className={`badge ${
-                        item.severity === "Critical"
-                          ? "badge--danger"
-                          : item.severity === "High"
-                            ? "badge--high"
-                            : item.severity === "Medium" ||
-                                item.severity === "Low"
-                              ? "badge--warning"
-                              : "badge--success"
-                      }`}
-                    >
-                      {item.severity}
-                    </span>
-                  </td>
+                  <td><SeverityBadge severity={item.severity} /></td>
                   <td>{item.response}</td>
                   <td>{item.target}</td>
                   <td>{item.escalation}</td>
@@ -159,8 +156,8 @@ export default function NotificationEscalationPage() {
 
       <GlassCard className="notification-list">
         <div className="section-heading">
-          <span className="pretext">RIWAYAT</span>
-          <h3 className="title-h3">Daftar Notifikasi</h3>
+          <span className="type-label text-muted-foreground">RIWAYAT</span>
+          <h3 className="type-card-title">Daftar Notifikasi</h3>
         </div>
         <DataTable
           columns={columns}

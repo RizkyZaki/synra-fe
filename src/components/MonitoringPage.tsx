@@ -43,8 +43,8 @@ function ComparisonChart({ assets }: { assets: Asset[] }) {
   return (
     <GlassCard className="monitoring-chart">
       <div className="section-heading">
-        <span className="pretext">UTILISASI</span>
-        <h3 className="title-h3">Perbandingan Metrik Aset</h3>
+        <span className="type-label text-muted-foreground">UTILISASI</span>
+        <h3 className="type-card-title">Perbandingan Metrik Aset</h3>
       </div>
       {assets.length > 0 ? (
         <div className="comparison-chart">
@@ -56,7 +56,7 @@ function ComparisonChart({ assets }: { assets: Asset[] }) {
           <div className="comparison-chart__rows">
             {assets.map((asset) => (
               <div className="comparison-row" key={asset.id}>
-                <strong className="label">{asset.name}</strong>
+                <strong className="type-body font-medium">{asset.name}</strong>
                 <div className="comparison-row__bars">
                   <span
                     className="comparison-bar comparison-bar--cpu"
@@ -82,7 +82,7 @@ function ComparisonChart({ assets }: { assets: Asset[] }) {
           </div>
         </div>
       ) : (
-        <p className="bodycopy text-muted">
+        <p className="type-body text-muted-foreground">
           Tidak ada aset yang sesuai dengan kategori monitoring ini.
         </p>
       )}
@@ -98,8 +98,8 @@ function DiskByMount({ assets }: { assets: Asset[] }) {
   return (
     <GlassCard className="storage-forecast">
       <div className="section-heading">
-        <span className="pretext">DISK</span>
-        <h3 className="title-h3">Pemakaian per Mount Point</h3>
+        <span className="type-label text-muted-foreground">DISK</span>
+        <h3 className="type-card-title">Pemakaian per Mount Point</h3>
       </div>
       <div className="forecast-table-wrap">
         <table className="forecast-table">
@@ -138,8 +138,8 @@ function AvailabilityTable() {
   return (
     <GlassCard className="storage-forecast">
       <div className="section-heading">
-        <span className="pretext">AVAILABILITY</span>
-        <h3 className="title-h3">
+        <span className="type-label text-muted-foreground">AVAILABILITY</span>
+        <h3 className="type-card-title">
           Availability 24 Jam
           {api.availability?.averagePct != null && ` · rata-rata ${api.availability.averagePct.toLocaleString("id-ID")}%`}
         </h3>
@@ -195,7 +195,7 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       render: (asset) => (
         <div className="table-primary">
           <strong>{asset.name}</strong>
-          <span className="label text-muted">{asset.ipAddress}</span>
+          <span className="type-meta text-muted-foreground">{asset.ipAddress}</span>
         </div>
       ),
     },
@@ -240,19 +240,19 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       )}
       <div className="monitoring-summary">
         <GlassCard>
-          <span className="label text-muted">Total aset</span>
+          <span className="type-meta text-muted-foreground">Total aset</span>
           <strong className="bigcopy">{relevant.length}</strong>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Daring</span>
+          <span className="type-meta text-muted-foreground">Daring</span>
           <strong className="bigcopy">{online}</strong>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Rata-rata CPU</span>
+          <span className="type-meta text-muted-foreground">Rata-rata CPU</span>
           <strong className="bigcopy">{averageCpu}%</strong>
         </GlassCard>
         <GlassCard>
-          <span className="label text-muted">Memori / disk</span>
+          <span className="type-meta text-muted-foreground">Memori / disk</span>
           <strong className="bigcopy">
             {averageMemory}% / {averageDisk}%
           </strong>
@@ -266,8 +266,8 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
 
       <GlassCard className="monitoring-table">
         <div className="section-heading">
-          <span className="pretext">ASET TERKAIT</span>
-          <h3 className="title-h3">Status {name}</h3>
+          <span className="type-label text-muted-foreground">ASET TERKAIT</span>
+          <h3 className="type-card-title">Daftar Aset {name}</h3>
         </div>
         <DataTable
           columns={columns}
