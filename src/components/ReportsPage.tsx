@@ -1,4 +1,4 @@
-import { Download, Printer } from "lucide-react"
+﻿import { Download, Printer } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError, apiFetch } from "../lib/api"
@@ -11,6 +11,14 @@ import {
   Toast,
   type DataTableColumn,
 } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const iconProps = {
   size: 20,
@@ -145,18 +153,9 @@ export default function ReportsPage() {
             </select>
           </label>
         </div>
-        <button className="button button--secondary" onClick={() => exportFile("xlsx")} disabled={busy !== ""}>
-          <Download {...iconProps} />
-          {busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}
-        </button>
-        <button className="button button--secondary" onClick={() => exportFile("pdf")} disabled={busy !== ""}>
-          <Download {...iconProps} />
-          {busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}
-        </button>
-        <button className="button button--primary" onClick={() => window.print()}>
-          <Printer {...iconProps} />
-          Cetak
-        </button>
+        <Button variant="outline" onClick={() => exportFile("xlsx")} disabled={busy !== ""}><Download {...iconProps} />{busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}</Button>
+        <Button variant="outline" onClick={() => exportFile("pdf")} disabled={busy !== ""}><Download {...iconProps} />{busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}</Button>
+        <Button onClick={() => window.print()}><Printer {...iconProps} />Cetak</Button>
       </div>
 
       <div className="executive-summary">

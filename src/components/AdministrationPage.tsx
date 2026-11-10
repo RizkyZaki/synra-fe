@@ -14,6 +14,14 @@ import {
   Toast,
   type DataTableColumn,
 } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type AdminTab = "Parameter EWS" | "Pengguna" | "Profil"
 
@@ -80,13 +88,21 @@ function AddUserDrawer({
           />
         </FormField>
         <FormField label="Role">
-          <select value={role} onChange={(event) => setRole(event.target.value as BackendRole)}>
-            {ROLE_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={role}
+            onValueChange={(value) => setRole((value ?? "OPERATOR") as BackendRole)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
         {error && (
           <p className="asset-form__error small-copy" role="alert">
@@ -94,12 +110,12 @@ function AddUserDrawer({
           </p>
         )}
         <div className="asset-form__actions">
-          <button type="button" className="button button--secondary" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Batal
-          </button>
-          <button type="submit" className="button button--primary" disabled={saving}>
+          </Button>
+          <Button type="submit" disabled={saving}>
             {saving ? "Menyimpan…" : "Tambah Pengguna"}
-          </button>
+          </Button>
         </div>
       </form>
     </Drawer>
@@ -172,13 +188,12 @@ function EwsParameters() {
           ))}
         </div>
         <div className="admin-save-row">
-          <button
-            className="button button--primary"
+          <Button
             onClick={() => void save()}
             {...restrictedAction(canConfig && !saving)}
           >
             {saving ? "Menyimpan…" : "Simpan Parameter"}
-          </button>
+          </Button>
         </div>
       </GlassCard>
       <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
@@ -261,10 +276,10 @@ function UsersAdministration() {
             <span className="pretext">AKSES</span>
             <h3 className="title-h3">Pengguna</h3>
           </div>
-          <button className="button button--primary" onClick={() => setDrawerOpen(true)}>
+          <Button onClick={() => setDrawerOpen(true)}>
             <Plus {...iconProps} />
             Tambah Pengguna
-          </button>
+          </Button>
         </div>
         <DataTable columns={columns} rows={users} rowKey={(user) => user.id} />
       </GlassCard>
@@ -321,9 +336,9 @@ function ProfileAdministration() {
           </FormField>
         </div>
         <div className="admin-save-row">
-          <button className="button button--primary" onClick={() => void saveName()}>
+          <Button onClick={() => void saveName()}>
             Simpan Nama
-          </button>
+          </Button>
         </div>
         <div className="profile-admin__form">
           <FormField label="Kata sandi lama">
@@ -344,9 +359,9 @@ function ProfileAdministration() {
           </FormField>
         </div>
         <div className="admin-save-row">
-          <button className="button button--primary" onClick={() => void savePassword()}>
+          <Button onClick={() => void savePassword()}>
             Ganti Kata Sandi
-          </button>
+          </Button>
         </div>
       </GlassCard>
       <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />

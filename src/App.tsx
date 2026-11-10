@@ -1,4 +1,4 @@
-import {
+﻿import {
   Bell,
   ChevronDown,
   LogOut,
@@ -22,6 +22,8 @@ import {
   StatusBadge,
   Toast,
 } from "./components/ui"
+import { Button } from "@/components/ui/button"
+import { Toaster } from "@/components/ui/sonner"
 import AdministrationPage from "./components/AdministrationPage"
 import AuditTrailPage from "./components/AuditTrailPage"
 import Dashboard from "./components/Dashboard"
@@ -510,6 +512,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
     localStorage.setItem("synra-theme", theme)
   }, [theme])
 
@@ -637,13 +644,6 @@ export default function App() {
   return (
     <AccessProvider user={currentUser}>
     <div className="app-shell">
-      <div className="ambient" aria-hidden="true">
-        <span className="blob blob--one" />
-        <span className="blob blob--two" />
-        <span className="blob blob--three" />
-        <span className="blob blob--four" />
-      </div>
-
       <header className="navbar glass-panel">
         <div className="navbar__left">
           <button
@@ -715,7 +715,7 @@ export default function App() {
 
           <button
             className="icon-button notification-button"
-            onClick={() => setNotificationOpen(true)}
+            onClick={() => { setProfileMenuOpen(false); setNotificationOpen(true) }}
             aria-label={`${unreadCount} notifikasi belum dibaca`}
           >
             <Bell {...iconProps} size={20} />
@@ -916,8 +916,9 @@ export default function App() {
             <StatusBadge status="Aktif" tone="success" />
           </div>
         </div>
-        <button
-          className="button button--secondary drawer__logout"
+        <Button
+          variant="outline"
+          className="drawer__logout w-full"
           onClick={() => {
             setProfileOpen(false)
             setLogoutOpen(true)
@@ -925,7 +926,7 @@ export default function App() {
         >
           <LogOut {...iconProps} size={20} />
           Keluar
-        </button>
+        </Button>
       </Drawer>
 
       <ConfirmDialog
@@ -947,6 +948,7 @@ export default function App() {
         onClose={closeToast}
       />
     </div>
+    <Toaster />
     </AccessProvider>
   )
 }

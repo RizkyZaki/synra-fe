@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react"
+﻿import { Pencil } from "lucide-react"
 import { useMemo, useState } from "react"
 import { createAuditEntry } from "../lib/audit"
 import { restrictedAction, useAccess } from "../lib/useAccess"
@@ -19,6 +19,14 @@ import {
   type DataTableColumn,
   ScopeNotice,
 } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export type LifecyclePageName =
   | "Lifecycle OS"
@@ -145,16 +153,8 @@ function LifecycleEditDrawer({
           </p>
         )}
         <div className="asset-form__actions">
-          <button
-            className="button button--secondary"
-            type="button"
-            onClick={onClose}
-          >
-            Batal
-          </button>
-          <button className="button button--primary" type="submit">
-            Simpan perubahan
-          </button>
+          <Button variant="outline" type="button" onClick={onClose}>Batal</Button>
+          <Button type="submit">Simpan perubahan</Button>
         </div>
       </form>
     </Drawer>
@@ -313,14 +313,13 @@ export default function LifecyclePage({
       <div className="lifecycle-detail">
         <ScopeNotice />
         <div className="asset-detail__header">
-          <button
-            className="button button--primary"
+          <Button
             onClick={() => setEditing(true)}
             {...restrictedAction(canEdit)}
           >
             <Pencil {...iconProps} />
             Ubah siklus hidup
-          </button>
+          </Button>
         </div>
         <GlassCard className="lifecycle-detail__summary">
           <span className="pretext">{selected.id}</span>
@@ -345,13 +344,14 @@ export default function LifecyclePage({
               </dd>
             </div>
           </dl>
-          <button
-            className="button button--secondary lifecycle-request-button"
+          <Button
+            variant="outline"
+            className="lifecycle-request-button"
             onClick={() => submitRequest(selected)}
             {...restrictedAction(canEdit)}
           >
             Ajukan Perpanjangan
-          </button>
+          </Button>
         </GlassCard>
 
         <GlassCard className="lifecycle-requests">
@@ -381,12 +381,11 @@ export default function LifecyclePage({
                       >
                         Tolak
                       </button>
-                      <button
-                        className="button button--primary"
+                      <Button
                         onClick={() => decideRequest(request, "Disetujui")}
                       >
                         Setujui
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -487,12 +486,11 @@ export default function LifecyclePage({
                     >
                       Tolak
                     </button>
-                    <button
-                      className="button button--primary"
+                    <Button
                       onClick={() => decideRequest(request, "Disetujui")}
                     >
                       Setujui
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

@@ -1,26 +1,107 @@
-import { ArrowLeft, X } from "lucide-react"
+/**
+ * ui.tsx — Komponen bersama SYNRA
+ *
+ * Implementasi menggunakan shadcn/ui.
+ * Semua nama export dan kontrak props publik DIPERTAHANKAN untuk kompatibilitas mundur.
+ */
+
+import { ArrowLeft, X, AlertTriangle, Inbox, type LucideIcon } from "lucide-react"
 import {
   type ComponentProps,
+  type HTMLAttributes,
   type ReactNode,
   useEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react"
+import { toast as sonnerToast } from "sonner"
 import type { Severity } from "../lib/synraDomain"
+import { cn } from "../lib/utils"
 
+// ── shadcn primitives ────────────────────────────────────────────────────────
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// ── GlassCard ────────────────────────────────────────────────────────────────
+/**
+ * Kartu solid (nama export GlassCard tetap untuk backward-compatibility).
+ */
 export function GlassCard({
   className = "",
   children,
   ...props
 }: ComponentProps<"section">) {
   return (
-    <section className={`glass-card ${className}`} {...props}>
+    <section className={cn("glass-card rounded-[var(--radius-surface,12px)] border border-border bg-card shadow-xs", className)} {...props}>
       {children}
     </section>
   )
 }
 
+// ── BackLink ─────────────────────────────────────────────────────────────────
+export function BackLink({
+  label,
+  href,
+  onClick,
+  className,
+}: {
+  label: string
+  href?: string
+  onClick?: () => void
+  className?: string
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn(
+        "h-[var(--control-height,38px)] gap-2 px-3 rounded-[var(--radius-control,10px)] text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center",
+        className
+      )}
+      onClick={(e) => {
+        if (onClick) {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      render={href ? <a href={href} /> : undefined}
+    >
+      <ArrowLeft size={16} strokeWidth={2} />
+      <span>{label}</span>
+    </Button>
+  )
+}
+
+// ── PageHeader ───────────────────────────────────────────────────────────────
 export function PageHeader({
-  eyebrow,
+  eyebrow: _eyebrow,
   title,
   badge,
   backTo,
@@ -28,7 +109,7 @@ export function PageHeader({
   readOnly = false,
   className = "",
 }: {
-  eyebrow: string
+  eyebrow?: string
   title: string
   badge?: ReactNode
   backTo?: { label: string; href: string }
@@ -37,30 +118,27 @@ export function PageHeader({
   className?: string
 }) {
   return (
-    <div className={`page-heading ${className}`}>
+    <div className={cn("page-heading", className)}>
       <div className="page-heading__copy">
         {backTo && (
-          <a
-            className="page-heading__back"
-            href={backTo.href}
-            onClick={(event) => {
-              if (!onNavigate) return
-              event.preventDefault()
-              onNavigate(backTo.href)
-            }}
-          >
-            <ArrowLeft aria-hidden="true" size={16} strokeWidth={1.75} />
-            {backTo.label}
-          </a>
+          <div className="mb-2">
+            <BackLink
+              label={backTo.label}
+              href={backTo.href}
+              onClick={() => onNavigate?.(backTo.href)}
+            />
+          </div>
         )}
         <div>
-          <span className="pretext page-heading__pretext">{eyebrow}</span>
-          <div className="page-heading__title-row">
-            <h2 className="title-h2">{title}</h2>
+          {/* Eyebrow dihapus dari render agar kartu/halaman punya satu judul bersih */}
+          <div className="page-heading__title-row flex items-center gap-3">
+            <h2 className="type-page-title">{title}</h2>
             {badge}
           </div>
           {readOnly && (
-            <span className="page-heading__access">Akses baca saja</span>
+            <span className="type-meta text-muted-foreground mt-1 inline-block">
+              Akses baca saja
+            </span>
           )}
         </div>
       </div>
@@ -69,6 +147,7 @@ export function PageHeader({
   )
 }
 
+// ── PageLayout ───────────────────────────────────────────────────────────────
 export function PageLayout({
   eyebrow,
   title,
@@ -79,7 +158,7 @@ export function PageLayout({
   headerClassName = "",
   children,
 }: {
-  eyebrow: string
+  eyebrow?: string
   title: string
   badge?: ReactNode
   backTo?: { label: string; href: string }
@@ -104,12 +183,13 @@ export function PageLayout({
   )
 }
 
+// ── KpiCard ──────────────────────────────────────────────────────────────────
 export function KpiCard({
   label,
   value,
   tag,
   tone,
-  description,
+  description: _description,
   note,
   onAction,
 }: {
@@ -117,13 +197,13 @@ export function KpiCard({
   value: string
   tag: string
   tone: string
-  description: string
+  description?: string
   note: string
   onAction: () => void
 }) {
   return (
     <GlassCard
-      className={`kpi-card kpi-card--interactive kpi-card--tone-${tone}`}
+      className={cn("kpi-card kpi-card--interactive flex flex-col justify-between p-5", `kpi-card--tone-${tone}`)}
       role="link"
       tabIndex={0}
       onClick={onAction}
@@ -135,84 +215,118 @@ export function KpiCard({
       }}
     >
       <div className="kpi-card__top">
-        <span className="small-copy">{label}</span>
+        <span className="type-label text-muted-foreground">{label}</span>
       </div>
-      <div className="kpi-card__value">
-        <strong className="bigcopy">{value}</strong>
-        <span className="kpi-card__tag">{tag}</span>
+      <div className="kpi-card__value my-2 flex items-baseline gap-2">
+        <strong className="text-2xl font-bold tracking-tight">{value}</strong>
+        {tag && <span className="type-meta text-muted-foreground">{tag}</span>}
       </div>
-      <div className="kpi-card__note">
-        <span className="kpi-card__note-copy" title={note}>{note}</span>
-        <button
-          className="kpi-card__link"
+      <div className="kpi-card__note flex items-center justify-between gap-2 pt-2 border-t border-border/50">
+        <span className="type-meta truncate" title={note}>{note}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-auto p-0 text-primary hover:bg-transparent font-medium"
           onClick={(event) => {
             event.stopPropagation()
             onAction()
           }}
         >
           Lihat
-        </button>
+        </Button>
       </div>
     </GlassCard>
   )
 }
 
-const severityConfig = {
-  Normal: "badge--success",
-  Info: "badge--success",
-  Low: "badge--warning",
-  Medium: "badge--warning",
-  High: "badge--high",
-  Critical: "badge--danger",
-  Expired: "badge--danger",
-} satisfies Record<Severity, string>
-
-const severityLabel = {
-  Normal: "Normal",
-  Info: "Info",
-  Low: "Rendah",
-  Medium: "Sedang",
-  High: "Tinggi",
+// ── SeverityBadge (Teks Murni Berwarna Tanpa Bungkus) ─────────────────────────
+const severityLabel: Record<Severity, string> = {
+  Normal:   "Normal",
+  Info:     "Info",
+  Low:      "Rendah",
+  Medium:   "Sedang",
+  High:     "Tinggi",
   Critical: "Kritis",
-  Expired: "Kedaluwarsa",
-} satisfies Record<Severity, string>
+  Expired:  "Kedaluwarsa",
+}
 
-export function SeverityBadge({ severity }: { severity: Severity }) {
+const severityTextClass: Record<Severity, string> = {
+  Normal:   "text-[var(--status-success)]",
+  Info:     "text-[var(--status-success)]",
+  Low:      "text-[var(--status-warning)]",
+  Medium:   "text-[var(--status-warning)]",
+  High:     "text-[var(--status-high)]",
+  Critical: "text-[var(--status-danger)]",
+  Expired:  "text-[var(--status-danger)]",
+}
+
+export function SeverityBadge({
+  severity,
+  className,
+}: {
+  severity: Severity
+  className?: string
+}) {
   return (
-    <span className={`badge ${severityConfig[severity]}`}>
+    <span className={cn("type-body font-semibold select-none", severityTextClass[severity], className)}>
       {severityLabel[severity]}
     </span>
   )
 }
 
+// ── StatusBadge (Teks Murni Berwarna Tanpa Bungkus) ───────────────────────────
 const statusLabels: Record<string, string> = {
-  Good: "Baik",
-  Warning: "Peringatan",
-  Critical: "Kritis",
-  Online: "Daring",
-  Offline: "Luring",
-  Degraded: "Menurun",
-  Renewed: "Diperpanjang",
-  Terminated: "Dihentikan",
-  Active: "Aktif",
-  Inactive: "Nonaktif",
-  "Menunggu Review": "Menunggu tinjauan",
+  Good:               "Baik",
+  Warning:            "Peringatan",
+  Critical:           "Kritis",
+  Online:             "Daring",
+  Offline:            "Luring",
+  Degraded:           "Menurun",
+  Renewed:            "Diperpanjang",
+  Terminated:         "Dihentikan",
+  Active:             "Aktif",
+  Inactive:           "Nonaktif",
+  "Menunggu Review":  "Menunggu tinjauan",
 }
 
 export function StatusBadge({
   status,
-  tone = "neutral",
+  tone,
+  className,
 }: {
   status: string
   tone?: "success" | "warning" | "danger" | "neutral"
+  className?: string
 }) {
+  const getTone = (): "success" | "warning" | "high" | "danger" | "neutral" => {
+    if (tone === "danger") return "danger"
+    if (tone === "warning") return "warning"
+    if (tone === "success") return "success"
+    if (tone === "neutral") return "neutral"
+    const s = status.toLowerCase()
+    if (s.includes("kritis") || s.includes("critical") || s.includes("offline") || s.includes("dihentikan")) return "danger"
+    if (s.includes("tinggi") || s.includes("high") || s.includes("menurun") || s.includes("degraded")) return "high"
+    if (s.includes("peringatan") || s.includes("warning") || s.includes("sedang") || s.includes("rendah") || s.includes("tinjau")) return "warning"
+    if (s.includes("baik") || s.includes("good") || s.includes("online") || s.includes("aktif") || s.includes("normal") || s.includes("pulih") || s.includes("perpanjang")) return "success"
+    return "neutral"
+  }
+
+  const toneClass: Record<string, string> = {
+    danger:  "text-[var(--status-danger)]",
+    high:    "text-[var(--status-high)]",
+    warning: "text-[var(--status-warning)]",
+    success: "text-[var(--status-success)]",
+    neutral: "text-[var(--status-neutral)]",
+  }
+
   return (
-    <span className={`badge badge--${tone}`}>
+    <span className={cn("type-body font-semibold select-none", toneClass[getTone()], className)}>
       {statusLabels[status] ?? status}
     </span>
   )
 }
 
+// ── DataTable ────────────────────────────────────────────────────────────────
 export interface DataTableColumn<T> {
   key: string
   header: string
@@ -233,21 +347,27 @@ export function DataTable<T>({
   onRowClick?: (row: T) => void
 }) {
   return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column.key}>{column.header}</th>
+    <div className="table-wrap overflow-x-auto w-full">
+      <Table className="data-table w-full">
+        <TableHeader>
+          <TableRow className="border-b border-border">
+            {columns.map((col) => (
+              <TableHead key={col.key} className="type-label text-muted-foreground h-10 px-3 py-2 text-left">
+                {col.header}
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr
+            <TableRow
               key={rowKey(row)}
               data-severity={rowSeverity?.(row)}
-              className={onRowClick ? "data-table__clickable" : undefined}
+              className={cn(
+                "border-b border-border/50 transition-colors",
+                "data-[severity=Critical]:bg-[color-mix(in_srgb,var(--status-danger)_8%,transparent)]",
+                onRowClick && "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 outline-none"
+              )}
               tabIndex={onRowClick ? 0 : undefined}
               onClick={() => onRowClick?.(row)}
               onKeyDown={(event) => {
@@ -260,17 +380,20 @@ export function DataTable<T>({
                 }
               }}
             >
-              {columns.map((column) => (
-                <td key={column.key}>{column.render(row)}</td>
+              {columns.map((col) => (
+                <TableCell key={col.key} className="type-body px-3 py-2.5">
+                  {col.render(row)}
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
+// ── FormField ────────────────────────────────────────────────────────────────
 export function FormField({
   label,
   hint,
@@ -283,13 +406,13 @@ export function FormField({
   children: ReactNode
 }) {
   return (
-    <label className="form-field">
-      <span className="label">{label}</span>
-      <span className="form-control-slot">
+    <label className="form-field flex flex-col gap-1.5 w-full">
+      <span className="type-label text-muted-foreground">{label}</span>
+      <span className="form-control-slot w-full">
         {children}
       </span>
       {(error || hint) && (
-        <span className={`label ${error ? "text-danger" : "text-muted"}`}>
+        <span className={cn("type-meta", error ? "text-[var(--status-danger)]" : "text-muted-foreground")}>
           {error || hint}
         </span>
       )}
@@ -297,50 +420,14 @@ export function FormField({
   )
 }
 
-function useFocusTrap(open: boolean, onClose: () => void) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const dialog = ref.current
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    const selector =
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    const focusable = Array.from(
-      dialog?.querySelectorAll<HTMLElement>(selector) ?? [],
-    )
-    focusable[0]?.focus()
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-      if (event.key !== "Tab" || focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown)
-    return () => {
-      document.removeEventListener("keydown", onKeyDown)
-      previouslyFocused?.focus()
-    }
-  }, [open, onClose])
-
-  return ref
-}
-
+// ── ConfirmDialog ─────────────────────────────────────────────────────────────
 export function ConfirmDialog({
   open,
   title,
   description,
   confirmLabel = "Konfirmasi",
   cancelLabel = "Batal",
+  tone = "danger",
   onConfirm,
   onClose,
 }: {
@@ -349,41 +436,36 @@ export function ConfirmDialog({
   description: string
   confirmLabel?: string
   cancelLabel?: string
+  tone?: "danger" | "warning" | "primary"
   onConfirm: () => void
   onClose: () => void
 }) {
-  const ref = useFocusTrap(open, onClose)
-  if (!open) return null
-
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        ref={ref}
-        className="dialog glass-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div>
-          <h3 id="dialog-title" className="title-h3">
-            {title}
-          </h3>
-          <p className="bodycopy text-muted">{description}</p>
-        </div>
-        <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose}>
+    <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+      <AlertDialogContent className="max-w-md p-6 bg-card border border-border rounded-[var(--radius-surface,12px)] shadow-xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="type-card-title">{title}</AlertDialogTitle>
+          <AlertDialogDescription className="type-body text-muted-foreground mt-2">
+            {description}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="mt-6 flex justify-end gap-3">
+          <AlertDialogCancel onClick={onClose}>
             {cancelLabel}
-          </button>
-          <button className="button button--primary" onClick={onConfirm}>
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className={tone === "danger" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+          >
             {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
+// ── Toast (adapter tipis → sonner) ───────────────────────────────────────────
 export function Toast({
   message,
   visible,
@@ -393,136 +475,325 @@ export function Toast({
   visible: boolean
   onClose: () => void
 }) {
-  useEffect(() => {
-    if (!visible) return
-    const timer = window.setTimeout(onClose, 3200)
-    return () => window.clearTimeout(timer)
-  }, [visible, onClose])
+  const shownRef = useRef(false)
 
-  return (
-    <div
-      className={`toast glass-card ${visible ? "toast--visible" : ""}`}
-      role="status"
-      aria-live="polite"
-    >
-      <span className="small-copy">{message}</span>
-      <button className="icon-button icon-button--small" onClick={onClose}>
-        <X aria-hidden="true" size={16} strokeWidth={1.75} />
-        <span className="sr-only">Tutup notifikasi</span>
-      </button>
-    </div>
-  )
+  useEffect(() => {
+    if (visible && !shownRef.current) {
+      shownRef.current = true
+      sonnerToast(message, {
+        duration: 3200,
+        onDismiss: onClose,
+        onAutoClose: onClose,
+      })
+    }
+    if (!visible) {
+      shownRef.current = false
+    }
+  }, [visible, message, onClose])
+
+  return null
 }
 
+// ── EmptyState ───────────────────────────────────────────────────────────────
 export function EmptyState({
   title,
   description,
   actionLabel,
   onAction,
+  icon: Icon = Inbox,
+  className,
 }: {
   title: string
-  description: string
-  actionLabel: string
-  onAction: () => void
+  description?: string
+  actionLabel?: string
+  onAction?: () => void
+  icon?: LucideIcon
+  className?: string
 }) {
   return (
-    <div className="empty-state">
-      <h3 className="title-h3">{title}</h3>
-      <p className="bodycopy text-muted">{description}</p>
-      <button className="button button--primary" onClick={onAction}>
-        {actionLabel}
-      </button>
+    <div className={cn("empty-state flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-surface,12px)] border border-border bg-card", className)}>
+      <div className="flex size-12 items-center justify-center rounded-[var(--radius-control,10px)] bg-muted text-muted-foreground mb-4">
+        <Icon size={24} />
+      </div>
+      <h3 className="type-card-title">{title}</h3>
+      {description && <p className="type-body text-muted-foreground mt-1 max-w-sm">{description}</p>}
+      {actionLabel && onAction && (
+        <Button variant="default" className="mt-4" onClick={onAction}>
+          {actionLabel}
+        </Button>
+      )}
     </div>
   )
 }
 
+// ── Drawer (Sheet side="right" as fixed overlay) ──────────────────────────────
 export function Drawer({
   open,
   title,
   children,
   onClose,
+  actions,
 }: {
   open: boolean
   title: string
   children: ReactNode
   onClose: () => void
+  actions?: ReactNode
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [open, onClose])
-
   return (
-    <div className={`drawer-layer ${open ? "drawer-layer--open" : ""}`}>
-      <button
-        className="drawer-backdrop"
-        aria-label="Tutup panel"
-        onClick={onClose}
-      />
-      <aside className="drawer glass-card" aria-hidden={!open}>
-        <div className="drawer__header">
-          <h3 className="title-h3">{title}</h3>
-          <button className="icon-button" onClick={onClose}>
-            <X aria-hidden="true" size={20} strokeWidth={1.75} />
+    <Sheet open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="fixed inset-y-0 right-0 z-[101] w-full sm:max-w-md flex flex-col p-0 border-l border-border bg-card shadow-2xl"
+      >
+        <SheetHeader className="drawer__header flex flex-row items-center justify-between p-5 pb-4 border-b border-border">
+          <SheetTitle className="type-card-title text-foreground">{title}</SheetTitle>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Tutup"
+            className="rounded-[var(--radius-control,10px)] text-muted-foreground hover:text-foreground"
+          >
+            <X aria-hidden="true" size={18} strokeWidth={2} />
             <span className="sr-only">Tutup</span>
-          </button>
-        </div>
-        <div className="drawer__body">
+          </Button>
+        </SheetHeader>
+        <div className="drawer__body flex-1 overflow-y-auto p-5">
           {children}
         </div>
-      </aside>
-    </div>
+        {actions && (
+          <div className="drawer__footer flex items-center justify-end gap-3 p-5 pt-4 border-t border-border bg-card">
+            {actions}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }
 
-export function LoadingState() {
+// ── LoadingState ──────────────────────────────────────────────────────────────
+export function LoadingState({ className }: { className?: string }) {
   return (
-    <div className="loading-state" aria-label="Memuat">
-      <div className="skeleton skeleton--title" />
-      <div className="skeleton" />
-      <div className="skeleton skeleton--short" />
+    <div className={cn("loading-state p-6 flex flex-col gap-3 rounded-[var(--radius-surface,12px)] border border-border bg-card", className)} aria-label="Memuat">
+      <Skeleton className="h-6 w-48 rounded-[var(--radius-control,10px)]" />
+      <Skeleton className="h-4 w-full rounded-[var(--radius-control,10px)]" />
+      <Skeleton className="h-4 w-3/4 rounded-[var(--radius-control,10px)]" />
     </div>
   )
 }
 
-export function ErrorState({ onRetry }: { onRetry: () => void }) {
+// ── ErrorState ────────────────────────────────────────────────────────────────
+export function ErrorState({
+  title = "Data tidak dapat dimuat",
+  message = "Periksa koneksi sistem lalu coba kembali.",
+  onRetry,
+  className,
+}: {
+  title?: string
+  message?: string
+  onRetry?: () => void
+  className?: string
+}) {
   return (
-    <div className="empty-state">
-      <h3 className="title-h3">Data tidak dapat dimuat</h3>
-      <p className="bodycopy text-muted">
-        Periksa koneksi sistem lalu coba kembali.
-      </p>
-      <button className="button button--secondary" onClick={onRetry}>
-        Coba lagi
-      </button>
+    <div className={cn("empty-state flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-surface,12px)] border border-destructive/30 bg-card", className)} role="alert">
+      <div className="flex size-12 items-center justify-center rounded-[var(--radius-control,10px)] bg-destructive/10 text-destructive mb-4">
+        <AlertTriangle size={24} />
+      </div>
+      <h3 className="type-card-title text-destructive">{title}</h3>
+      <p className="type-body text-muted-foreground mt-1 max-w-sm">{message}</p>
+      {onRetry && (
+        <Button variant="outline" className="mt-4" onClick={onRetry}>
+          Coba lagi
+        </Button>
+      )}
     </div>
   )
 }
 
-/** Penanda fitur yang belum didukung backend SYNRA (di luar cakupan pilot); data di halaman adalah contoh. */
+// ── ScopeNotice ───────────────────────────────────────────────────────────────
 export function ScopeNotice({ children }: { children?: ReactNode }) {
   return (
-    <div className="scope-notice" role="note">
-      <strong className="small-copy">Belum tersedia di backend SYNRA</strong>
-      <span className="label">
+    <Alert className="scope-notice mb-4 border-warning/50 bg-warning/5 text-[var(--status-warning)]" role="note">
+      <AlertTitle className="type-label font-semibold">Belum tersedia di backend SYNRA</AlertTitle>
+      <AlertDescription className="type-body mt-1">
         {children ??
           "Fitur ini di luar cakupan pilot. Data yang tampil di halaman ini adalah contoh dan tidak tersimpan di server."}
-      </span>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+// ── ApiErrorBanner ────────────────────────────────────────────────────────────
+export function ApiErrorBanner({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry?: () => void
+}) {
+  if (!message) return null
+  return (
+    <Alert variant="destructive" className="mb-4 flex items-center justify-between" role="alert">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0" />
+        <div>
+          <AlertTitle className="type-label font-semibold">Gagal memuat data</AlertTitle>
+          <AlertDescription className="type-body">{message}</AlertDescription>
+        </div>
+      </div>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          Coba lagi
+        </Button>
+      )}
+    </Alert>
+  )
+}
+
+// ── FilterField & PageToolbar (Step 4F) ─────────────────────────────────────────
+export function FilterField({
+  label,
+  children,
+  className,
+}: {
+  label: string
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <span className="type-label text-muted-foreground">{label}</span>
+      {children}
     </div>
   )
 }
 
-/** Banner status koneksi backend (error pemuatan data). */
-export function ApiErrorBanner({ message }: { message: string }) {
-  if (!message) return null
+export function PageToolbar({
+  children,
+  actions,
+  className,
+}: {
+  children?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
   return (
-    <div className="scope-notice scope-notice--danger" role="alert">
-      <strong className="small-copy">Gagal memuat data</strong>
-      <span className="label">{message}</span>
+    <div className={cn("flex flex-wrap items-end justify-between gap-3 w-full", className)}>
+      <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
+        {children}
+      </div>
+      {actions && (
+        <div className="flex items-center gap-2 shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
+  )
+}
+
+// ── usePagination & Pagination (Step 4F) ───────────────────────────────────────
+export function usePagination<T>(rows: T[], pageSize = 10) {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+
+  useEffect(() => {
+    setPage((current) => Math.min(Math.max(1, current), totalPages))
+  }, [rows.length, totalPages])
+
+  const startIndex = (page - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, rows.length)
+  const paginatedRows = useMemo(
+    () => rows.slice(startIndex, endIndex),
+    [rows, startIndex, endIndex]
+  )
+
+  return {
+    page,
+    setPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    totalRows: rows.length,
+    paginatedRows,
+  }
+}
+
+export function Pagination({
+  page,
+  totalPages,
+  totalRows,
+  startIndex,
+  endIndex,
+  onPageChange,
+  itemLabel = "data",
+}: {
+  page: number
+  totalPages: number
+  totalRows: number
+  startIndex: number
+  endIndex: number
+  onPageChange: (page: number) => void
+  itemLabel?: string
+}) {
+  const rangeSummary =
+    totalRows > 0
+      ? `Menampilkan ${startIndex + 1}–${endIndex} dari ${totalRows} ${itemLabel}`
+      : `Menampilkan 0 ${itemLabel}`
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    if (page <= 4) {
+      return [1, 2, 3, 4, 5, "ellipsis", totalPages]
+    }
+    if (page >= totalPages - 3) {
+      return [1, "ellipsis", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    }
+    return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", totalPages]
+  }
+
+  return (
+    <nav aria-label="Navigasi paginasi" className="flex flex-wrap items-center justify-between gap-3 pt-3 w-full">
+      <span className="type-meta">{rangeSummary}</span>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          Sebelumnya
+        </Button>
+        {getPageNumbers().map((num, idx) =>
+          num === "ellipsis" ? (
+            <span key={`el-${idx}`} className="px-2 text-muted-foreground select-none">
+              …
+            </span>
+          ) : (
+            <Button
+              key={num}
+              variant={page === num ? "default" : "outline"}
+              size="sm"
+              aria-current={page === num ? "page" : undefined}
+              className={page === num ? "border-transparent font-medium" : "font-normal"}
+              onClick={() => onPageChange(num as number)}
+            >
+              {num}
+            </Button>
+          )
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Berikutnya
+        </Button>
+      </div>
+    </nav>
   )
 }

@@ -1,10 +1,18 @@
-import { Download } from "lucide-react"
+﻿import { Download } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
 import { formatDateTime } from "../lib/backend"
 import type { AuditEntry } from "../lib/synraDomain"
 import { ApiErrorBanner, DataTable, GlassCard, Toast, type DataTableColumn } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const iconProps = {
   size: 20,
@@ -85,10 +93,7 @@ export default function AuditTrailPage() {
               placeholder="Cari pengguna, tindakan, target, atau detail"
             />
           </div>
-          <button className="button button--primary" onClick={() => void exportCsv()}>
-            <Download {...iconProps} />
-            Ekspor CSV
-          </button>
+          <Button onClick={() => void exportCsv()}><Download {...iconProps} />Ekspor CSV</Button>
         </div>
 
         <div className="audit-filters">

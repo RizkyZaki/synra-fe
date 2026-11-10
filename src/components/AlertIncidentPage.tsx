@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+﻿import { useMemo, useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
@@ -14,6 +14,14 @@ import {
   Toast,
   type DataTableColumn,
 } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const statusFlow: AlertStatus[] = [
   "Baru",
@@ -94,13 +102,12 @@ function WorkflowForm({
           {error}
         </p>
       )}
-      <button
-        className="button button--primary"
+      <Button
         type="submit"
         {...restrictedAction(allowed)}
       >
         {title}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -280,13 +287,12 @@ export default function AlertIncidentPage({
               ))}
             </div>
             {selected.status === "Baru" && (
-              <button
-                className="button button--primary"
+              <Button
                 {...restrictedAction(canEdit && !busy)}
                 onClick={() => changeStatus(selected, "acknowledge", "Diakui")}
               >
                 Akui Alert
-              </button>
+              </Button>
             )}
             {selected.status === "Diakui" && (
               <WorkflowForm
@@ -384,13 +390,12 @@ export default function AlertIncidentPage({
               </select>
             </label>
           </div>
-          <button
-            className="button button--primary"
+          <Button
             onClick={() => void evaluateEws()}
             {...restrictedAction(canConfig && !busy)}
           >
             Evaluasi EWS
-          </button>
+          </Button>
         </div>
         <DataTable
           columns={columns}

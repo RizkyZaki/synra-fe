@@ -1,4 +1,4 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
@@ -12,6 +12,7 @@ import {
   Toast,
   type DataTableColumn,
 } from "./ui"
+import { Button } from "@/components/ui/button"
 
 const slaMatrix: Array<{
   severity: Severity
@@ -103,13 +104,12 @@ export default function NotificationEscalationPage() {
           </p>
         </div>
         <div>
-          <button
-            className="button button--primary"
+          <Button
             onClick={() => void sendTest()}
             {...restrictedAction(canConfig && api.telegramConfigured === true)}
           >
             Kirim Pesan Uji
-          </button>
+          </Button>
         </div>
       </GlassCard>
       <GlassCard className="sla-matrix">

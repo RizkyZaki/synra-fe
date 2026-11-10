@@ -16,6 +16,14 @@ import {
   Toast,
   type DataTableColumn,
 } from "./ui"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const iconProps = {
   size: 20,
@@ -170,34 +178,42 @@ function AssetFormDrawer({
             ))}
           </datalist>
         </FormField>
+
         <FormField label="Host">
-          <select
+          <Select
             value={form.hostId}
-            onChange={(event) => updateField("hostId", event.target.value)}
-            required
+            onValueChange={(value) => updateField("hostId", value ?? "")}
           >
-            {api.hosts.map((host) => (
-              <option key={host.id} value={host.id}>
-                {host.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Pilih host" />
+            </SelectTrigger>
+            <SelectContent>
+              {api.hosts.map((host) => (
+                <SelectItem key={host.id} value={host.id}>
+                  {host.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
+
         <FormField label="Kategori">
-          <select
+          <Select
             value={form.category}
-            onChange={(event) =>
-              updateField("category", event.target.value as AssetForm["category"])
+            onValueChange={(value) =>
+              updateField("category", (value ?? "") as AssetForm["category"])
             }
-            required
           >
-            <option value="" disabled>
-              Pilih kategori
-            </option>
-            <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
-            <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Pilih kategori" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</SelectItem>
+              <SelectItem value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</SelectItem>
+            </SelectContent>
+          </Select>
         </FormField>
+
         <FormField label="Tipe" hint="Mis. CPU untuk hardware, VM untuk software">
           <input
             list="asset-types"
@@ -206,24 +222,31 @@ function AssetFormDrawer({
             required
           />
           <datalist id="asset-types">
-            {(form.category ? TYPE_SUGGESTIONS[form.category] : []).map((type) => (
+            {(form.category ? TYPE_SUGGESTIONS[form.category as keyof typeof TYPE_SUGGESTIONS] ?? [] : []).map((type) => (
               <option key={type} value={type} />
             ))}
           </datalist>
         </FormField>
+
         <FormField label="Supervisor" hint="Kosongkan bila Anda sendiri supervisornya">
-          <select
+          <Select
             value={form.supervisorId}
-            onChange={(event) => updateField("supervisorId", event.target.value)}
+            onValueChange={(value) => updateField("supervisorId", value ?? "")}
           >
-            <option value="">Tanpa pilihan</option>
-            {api.supervisors.map((supervisor) => (
-              <option key={supervisor.id} value={supervisor.id}>
-                {supervisor.fullName}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Tanpa pilihan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tanpa pilihan</SelectItem>
+              {api.supervisors.map((supervisor) => (
+                <SelectItem key={supervisor.id} value={supervisor.id}>
+                  {supervisor.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
+
         <FormField label="PIC">
           <input
             value={form.picName}
@@ -253,16 +276,16 @@ function AssetFormDrawer({
         )}
 
         <div className="asset-form__actions">
-          <button
-            className="button button--secondary"
+          <Button
+            variant="outline"
             type="button"
             onClick={onClose}
           >
             Batal
-          </button>
-          <button className="button button--primary" type="submit" disabled={saving}>
+          </Button>
+          <Button type="submit" disabled={saving}>
             {saving ? "Menyimpan…" : asset ? "Simpan perubahan" : "Tambah aset"}
-          </button>
+          </Button>
         </div>
       </form>
     </Drawer>
@@ -285,14 +308,13 @@ function AssetDetail({
   return (
     <div className="asset-detail">
       <div className="asset-detail__header">
-        <button
-          className="button button--primary"
+        <Button
           onClick={onEdit}
           {...restrictedAction(canEdit)}
         >
           <Pencil {...iconProps} />
           Ubah data
-        </button>
+        </Button>
       </div>
 
       <GlassCard className="asset-summary">
@@ -380,7 +402,7 @@ function AssetDetail({
         </GlassCard>
 
         <GlassCard className="asset-detail__section">
-          <span className="pretext">DISK & HOST</span>
+          <span className="pretext">DISK &amp; HOST</span>
           <h3 className="title-h3">Mount point</h3>
           <div className="asset-detail__metrics">
             {(asset.disks ?? []).map((disk) => (
@@ -656,12 +678,11 @@ export default function AssetInventory({
             />
           </div>
           <div className="inventory-actions">
-            <button className="button button--secondary" onClick={exportCsv}>
+            <Button variant="outline" onClick={exportCsv}>
               <Download {...iconProps} />
               Ekspor CSV
-            </button>
-            <button
-              className="button button--primary"
+            </Button>
+            <Button
               {...restrictedAction(canEdit)}
               onClick={() => {
                 setEditing(null)
@@ -670,103 +691,128 @@ export default function AssetInventory({
             >
               <Plus {...iconProps} />
               Tambah aset
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="inventory-filters">
+          {/* Filter: Komponen */}
           <label>
             <span className="label">Komponen</span>
-            <select
+            <Select
               value={typeFilter}
-              onChange={(event) => {
-                setTypeFilter(event.target.value)
-                setPage(1)
-              }}
+              onValueChange={(value) => { setTypeFilter(value ?? "Semua"); setPage(1) }}
             >
-              <option>Semua</option>
-              {types.map((type) => (
-                <option key={type}>{type}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                {types.map((type) => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
+
+          {/* Filter: Kategori */}
           <label>
             <span className="label">Kategori</span>
-            <select
+            <Select
               value={categoryFilter}
-              onChange={(event) => {
-                setCategoryFilter(event.target.value)
-                setPage(1)
-              }}
+              onValueChange={(value) => { setCategoryFilter(value ?? "Semua"); setPage(1) }}
             >
-              <option>Semua</option>
-              <option value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</option>
-              <option value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</option>
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                <SelectItem value="HARDWARE">{CATEGORY_LABEL.HARDWARE}</SelectItem>
+                <SelectItem value="SOFTWARE">{CATEGORY_LABEL.SOFTWARE}</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
+
+          {/* Filter: Host */}
           <label>
             <span className="label">Host</span>
-            <select
+            <Select
               value={locationFilter}
-              onChange={(event) => {
-                setLocationFilter(event.target.value)
-                setPage(1)
-              }}
+              onValueChange={(value) => { setLocationFilter(value ?? "Semua"); setPage(1) }}
             >
-              <option>Semua</option>
-              {api.hosts.map((host) => (
-                <option key={host.id}>{host.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                {api.hosts.map((host) => (
+                  <SelectItem key={host.id} value={host.name}>{host.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
+
+          {/* Filter: Status */}
           <label>
             <span className="label">Status</span>
-            <select
+            <Select
               value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value)
-                setPage(1)
-              }}
+              onValueChange={(value) => { setStatusFilter(value ?? "Semua"); setPage(1) }}
             >
-              <option>Semua</option>
-              <option value="Online">Daring</option>
-              <option value="Degraded">Menurun</option>
-              <option value="Offline">Luring (stale)</option>
-              <option>Nonaktif</option>
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                <SelectItem value="Online">Daring</SelectItem>
+                <SelectItem value="Degraded">Menurun</SelectItem>
+                <SelectItem value="Offline">Luring (stale)</SelectItem>
+                <SelectItem value="Nonaktif">Nonaktif</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
+
+          {/* Filter: Severity */}
           <label>
             <span className="label">Severity</span>
-            <select
+            <Select
               value={severityFilter}
-              onChange={(event) => {
-                setSeverityFilter(event.target.value)
-                setPage(1)
-              }}
+              onValueChange={(value) => { setSeverityFilter(value ?? "Semua"); setPage(1) }}
             >
-              <option>Semua</option>
-              <option value="Normal">Normal</option>
-              <option value="Info">Info</option>
-              <option value="Low">Rendah</option>
-              <option value="Medium">Sedang</option>
-              <option value="High">Tinggi</option>
-              <option value="Critical">Kritis</option>
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua</SelectItem>
+                <SelectItem value="Normal">Normal</SelectItem>
+                <SelectItem value="Info">Info</SelectItem>
+                <SelectItem value="Low">Rendah</SelectItem>
+                <SelectItem value="Medium">Sedang</SelectItem>
+                <SelectItem value="High">Tinggi</SelectItem>
+                <SelectItem value="Critical">Kritis</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
+
+          {/* Urutkan */}
           <label>
             <span className="label">Urutkan</span>
-            <select
+            <Select
               value={sortBy}
-              onChange={(event) =>
-                setSortBy(event.target.value as typeof sortBy)
-              }
+              onValueChange={(value) => setSortBy((value ?? "name") as typeof sortBy)}
             >
-              <option value="name">Hostname</option>
-              <option value="cpu">CPU</option>
-              <option value="memory">Memory</option>
-              <option value="disk">Disk</option>
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Hostname</SelectItem>
+                <SelectItem value="cpu">CPU</SelectItem>
+                <SelectItem value="memory">Memory</SelectItem>
+                <SelectItem value="disk">Disk</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
+
           <button
             className="text-action inventory-sort-direction"
             onClick={() => setAscending((current) => !current)}

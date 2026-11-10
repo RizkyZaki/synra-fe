@@ -396,7 +396,7 @@ function AssetDistribution() {
               cy="60"
               r="44"
               fill="none"
-              stroke="var(--glass-divider)"
+              stroke="var(--border)"
               strokeWidth="18"
             />
             {distribution.map((item, index) => {

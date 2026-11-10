@@ -1,5 +1,31 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap");
+@import "@fontsource-variable/geist";
 @import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
   --font-ui: "Geist", system-ui, sans-serif;
@@ -44,29 +70,225 @@
   --danger-700: #e00606;
   --danger-800: #7f0303;
 
-  --page-start: var(--secondary-950);
-  --page-end: var(--secondary-800);
   --text-primary: #f1f3f6;
   --text-secondary: #c8ced9;
-  --glass-fill: rgb(255 255 255 / 12%);
-  --glass-fill-strong: rgb(255 255 255 / 16%);
-  --glass-border: rgb(255 255 255 / 25%);
-  --glass-highlight: rgb(255 255 255 / 35%);
-  --glass-divider: rgb(255 255 255 / 10%);
   --scrim: rgb(9 11 14 / 72%);
+
+  /* ── shadcn theme variables (dipetakan ke token SYNRA) ── */
+  /* Tema gelap (default SYNRA) */
+  --background: var(--secondary-950);
+  --foreground: var(--text-primary);
+  --card: var(--secondary-900);
+  --card-foreground: var(--text-primary);
+  --popover: var(--secondary-900);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--primary-700);
+  --primary-foreground: #ffffff;
+  --secondary: var(--secondary-700);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--secondary-800);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--secondary-700);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger-600);
+  --destructive-foreground: #ffffff;
+  --success: var(--success-700);
+  --success-foreground: #ffffff;
+  --warning: var(--warning-700);
+  --warning-foreground: var(--secondary-950);
+  --border: var(--secondary-800);
+  --input: var(--secondary-800);
+  --ring: var(--primary-700);
+  --sidebar: var(--secondary-900);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--primary-700);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--secondary-800);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary-700);
+
+  /* ── Token Bentuk & Ukuran (Step 3B) ── */
+  --radius-control: 10px;
+  --radius-surface: 12px;
+  --radius: 12px;
+  --control-height: 38px;
+  --control-padding-x: 12px;
+
+  /* ── Token Popup / Menu (Step 3B) ── */
+  --menu-radius: 12px;
+  --menu-padding: 4px;
+  --menu-item-height: 36px;
+  --menu-item-px: 12px;
+  --menu-border: 1px solid var(--border);
+  --menu-shadow: 0 4px 16px rgb(0 0 0 / 22%);
+
+  /* ── Tipografi Modifiers (Step 3C) ── */
+  --label-transform: uppercase;
+  --label-letter-spacing: 0.04em;
+
+  /* ── Warna Teks Status Tema Gelap (Step 3D: kontras >= 4.5:1 terhadap #191d24) ── */
+  --status-danger: #fb6565;
+  --status-high: #ff973c;
+  --status-warning: #ffdd1f;
+  --status-success: #80ec95;
+  --status-neutral: var(--text-secondary);
 }
 
 :root[data-theme="light"] {
-  --page-start: #f1f3f6;
-  --page-end: #fcfcfd;
   --text-primary: #191d24;
   --text-secondary: #384252;
-  --glass-fill: rgb(255 255 255 / 55%);
-  --glass-fill-strong: rgb(255 255 255 / 72%);
-  --glass-border: rgb(255 255 255 / 76%);
-  --glass-highlight: rgb(255 255 255 / 92%);
-  --glass-divider: rgb(25 29 36 / 9%);
   --scrim: rgb(25 29 36 / 38%);
+
+  /* shadcn vars untuk tema terang */
+  --background: var(--secondary-100);
+  --foreground: var(--text-primary);
+  --card: #ffffff;
+  --card-foreground: var(--text-primary);
+  --popover: #ffffff;
+  --popover-foreground: var(--text-primary);
+  --primary: var(--primary-700);
+  --primary-foreground: #ffffff;
+  --secondary: var(--secondary-200);
+  --secondary-foreground: var(--secondary-800);
+  --muted: var(--secondary-200);
+  --muted-foreground: var(--secondary-600);
+  --accent: var(--secondary-200);
+  --accent-foreground: var(--secondary-800);
+  --destructive: var(--danger-600);
+  --destructive-foreground: #ffffff;
+  --success: var(--success-700);
+  --success-foreground: #ffffff;
+  --warning: var(--warning-700);
+  --warning-foreground: #ffffff;
+  --border: var(--secondary-200);
+  --input: var(--secondary-200);
+  --ring: var(--primary-700);
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--primary-700);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--secondary-200);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary-700);
+
+  /* ── Token Bentuk & Ukuran (Step 3B) ── */
+  --radius-control: 10px;
+  --radius-surface: 12px;
+  --radius: 12px;
+  --control-height: 38px;
+  --control-padding-x: 12px;
+
+  /* ── Token Popup / Menu (Step 3B) ── */
+  --menu-radius: 12px;
+  --menu-padding: 4px;
+  --menu-item-height: 36px;
+  --menu-item-px: 12px;
+  --menu-border: 1px solid var(--border);
+  --menu-shadow: 0 4px 16px rgb(25 29 36 / 10%);
+
+  /* ── Tipografi Modifiers (Step 3C) ── */
+  --label-transform: uppercase;
+  --label-letter-spacing: 0.04em;
+
+  /* ── Warna Teks Status Tema Terang (Step 3D: kontras >= 4.5:1 terhadap #ffffff) ── */
+  --status-danger: #c81e1e;
+  --status-high: #b85000;
+  --status-warning: #785400;
+  --status-success: #0e8325;
+  --status-neutral: var(--text-secondary);
+}
+
+
+
+/* ── Permukaan Solid Opaque (100% Alpha 1) ── */
+.bg-card,
+[data-slot="card"],
+[data-slot="sheet-content"],
+[data-slot="alert-dialog-content"] {
+  background-color: var(--card) !important;
+  color: var(--card-foreground);
+}
+
+.bg-popover,
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"],
+.nav-dropdown,
+.profile-dropdown,
+.mobile-menu__panel {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground);
+}
+
+.border-border,
+[data-slot="card"],
+[data-slot="sheet-content"],
+[data-slot="alert-dialog-content"],
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"] {
+  border-color: var(--border);
+}
+
+/* ── Skala Tipografi Standar SYNRA (Step 3C) ── */
+.type-page-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.type-card-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.type-subtitle {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.type-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.type-meta {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.type-label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  text-transform: var(--label-transform, uppercase);
+  letter-spacing: var(--label-letter-spacing, 0.04em);
+}
+
+/* ── Kelas Teks Status Solid (Step 3D) ── */
+.text-status-danger {
+  color: var(--status-danger);
+}
+
+.text-status-high {
+  color: var(--status-high);
+}
+
+.text-status-warning {
+  color: var(--status-warning);
+}
+
+.text-status-success {
+  color: var(--status-success);
+}
+
+.text-status-neutral {
+  color: var(--status-neutral);
 }
 
 *,
@@ -75,6 +297,10 @@
   box-sizing: border-box;
   font-family: var(--font-ui);
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 html,
@@ -212,86 +438,26 @@ select:focus-visible {
   display: flex;
   min-height: 100dvh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 58% 46%, rgb(255 119 0 / 7%), transparent 34%),
-    linear-gradient(135deg, var(--page-start), var(--page-end));
+  background: var(--background);
 }
 
-.ambient {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.blob {
-  position: absolute;
-  display: block;
-  border-radius: 42% 58% 70% 30% / 40% 46% 54% 60%;
-  filter: blur(96px);
-  opacity: 0.36;
-  background: linear-gradient(135deg, var(--primary-700), var(--primary-300));
-  animation: drift 18s ease-in-out infinite alternate;
-}
-
-.blob--one {
-  top: -14%;
-  left: 18%;
-  width: 340px;
-  height: 280px;
-}
-
-.blob--two {
-  top: 28%;
-  right: -8%;
-  width: 420px;
-  height: 360px;
-  opacity: 0.3;
-  animation-delay: -6s;
-}
-
-.blob--three {
-  bottom: -18%;
-  left: 33%;
-  width: 480px;
-  height: 320px;
-  opacity: 0.24;
-  animation-delay: -11s;
-}
-
-.blob--four {
-  bottom: 4%;
-  left: -11%;
-  width: 280px;
-  height: 330px;
-  opacity: 0.28;
-  animation-delay: -3s;
-}
-
-@keyframes drift {
-  to {
-    transform: translate3d(34px, -22px, 0) rotate(8deg) scale(1.08);
-  }
-}
+/* Decorative ambient blobs removed for flat background */
 
 .glass-panel,
 .glass-card {
   position: relative;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-fill);
-  box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
-    0 8px 32px rgb(0 0 0 / 25%);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+  border-radius: var(--radius);
 }
 
 .glass-panel {
-  border-radius: 24px;
+  border-radius: var(--radius);
 }
 
 .glass-card {
-  border-radius: 20px;
+  border-radius: var(--radius);
 }
 
 .desktop-sidebar {
@@ -316,7 +482,7 @@ select:focus-visible {
   gap: 12px;
   min-height: 82px;
   padding: 18px 18px 15px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .brand-logo {
@@ -344,7 +510,7 @@ select:focus-visible {
   flex-direction: column;
   gap: 3px;
   padding-left: 12px;
-  border-left: 1px solid var(--glass-divider);
+  border-left: 1px solid var(--border);
 }
 
 .workspace-copy span {
@@ -356,7 +522,7 @@ select:focus-visible {
   padding: 16px 12px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--glass-border) transparent;
+  scrollbar-color: var(--border) transparent;
 }
 
 .nav-group + .nav-group {
@@ -432,7 +598,7 @@ select:focus-visible {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .profile-card {
@@ -440,7 +606,7 @@ select:focus-visible {
   align-items: center;
   gap: 9px;
   padding: 10px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 14px;
   background: rgb(255 255 255 / 6%);
 }
@@ -534,10 +700,9 @@ select:focus-visible {
   gap: 10px;
   min-height: 42px;
   padding: 0 13px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--glass-fill-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  background: var(--card);
 }
 
 .search-field input {
@@ -559,7 +724,7 @@ select:focus-visible {
 
 .search-field kbd {
   padding: 4px 6px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text-secondary);
   background: rgb(255 255 255 / 6%);
@@ -581,10 +746,9 @@ select:focus-visible {
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--glass-fill-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  background: var(--card);
   cursor: pointer;
 }
 
@@ -607,10 +771,9 @@ select:focus-visible {
   align-items: center;
   gap: 3px;
   padding: 4px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--glass-fill-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  background: var(--card);
   cursor: pointer;
 }
 
@@ -642,10 +805,10 @@ select:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-secondary);
-  background: var(--glass-fill);
+  background: var(--card);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -656,17 +819,7 @@ select:focus-visible {
   color: var(--success-500);
 }
 
-.module-canvas::before {
-  position: absolute;
-  inset: 0;
-  opacity: 0.22;
-  background-image:
-    linear-gradient(var(--glass-divider) 1px, transparent 1px),
-    linear-gradient(90deg, var(--glass-divider) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, black, transparent 78%);
-  content: "";
-}
+/* Grid pattern removed for flat background */
 
 .empty-state {
   position: relative;
@@ -690,12 +843,11 @@ select:focus-visible {
   height: 92px;
   place-items: center;
   margin-bottom: 22px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 28px;
   color: var(--primary-200);
-  background: var(--glass-fill-strong);
+  background: var(--card);
   box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
     0 0 32px rgb(255 119 0 / 20%);
   transform: rotate(-5deg);
 }
@@ -740,19 +892,6 @@ select:focus-visible {
   transform: translateY(-1px);
 }
 
-.button--primary {
-  border: 1px solid var(--primary-600);
-  color: #fff;
-  background: var(--primary-700);
-  box-shadow: 0 0 18px rgb(255 179 112 / 26%);
-}
-
-.button--secondary {
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-  background: var(--glass-fill-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
-}
 
 .badge {
   display: inline-flex;
@@ -792,9 +931,9 @@ select:focus-visible {
 }
 
 .badge--neutral {
-  border-color: var(--glass-border);
+  border-color: var(--border);
   color: var(--text-secondary);
-  background: var(--glass-fill);
+  background: var(--card);
 }
 
 :root[data-theme="light"] .badge--success {
@@ -852,7 +991,7 @@ select:focus-visible {
   gap: 8px;
   padding-top: 10px;
   margin-top: 6px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .kpi-card__description,
@@ -909,11 +1048,11 @@ select:focus-visible {
 .form-control-slot textarea {
   width: 100%;
   padding: 11px 12px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   outline: 0;
   color: var(--text-primary);
-  background: var(--glass-fill-strong);
+  background: var(--card);
 }
 
 .form-control-slot input:focus,
@@ -935,7 +1074,7 @@ select:focus-visible {
 .data-table th,
 .data-table td {
   padding: 13px 14px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
@@ -964,7 +1103,6 @@ select:focus-visible {
   place-items: center;
   padding: 20px;
   background: var(--scrim);
-  backdrop-filter: blur(8px);
 }
 
 .dialog {
@@ -1060,21 +1198,14 @@ select:focus-visible {
 }
 
 .drawer {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: min(390px, calc(100vw - 24px));
-  padding: 20px;
   overflow: hidden;
-  transform: translateX(calc(100% + 24px));
-  transition: transform 220ms ease;
 }
 
 .drawer-layer--open .drawer {
-  transform: translateX(0);
+  /* Transform handled by Sheet */
 }
 
 .drawer__header {
@@ -1082,7 +1213,7 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .drawer-profile {
@@ -1107,7 +1238,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 20px;
   padding: 14px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: rgb(255 255 255 / 5%);
 }
@@ -1475,10 +1606,10 @@ select:focus-visible {
   height: 34px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--primary-300);
-  background: var(--glass-fill-strong);
+  background: var(--card);
 }
 
 :root[data-theme="light"] .dropdown-item__icon {
@@ -1511,10 +1642,9 @@ select:focus-visible {
   gap: 9px;
   padding: 0 11px;
   overflow: hidden;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--glass-fill-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  background: var(--card);
   transition: width 200ms ease;
 }
 
@@ -1588,7 +1718,7 @@ select:focus-visible {
   gap: 3px;
   padding: 9px 10px 12px;
   margin-bottom: 3px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .profile-dropdown > button {
@@ -1698,18 +1828,16 @@ select:focus-visible {
 .nav-dropdown,
 .profile-dropdown,
 .mobile-menu__panel {
-  border: 1px solid rgb(255 255 255 / 8%);
-  background: rgb(25 29 36 / 94%);
+  border: 1px solid var(--border);
+  background: var(--card);
   box-shadow: 0 14px 36px rgb(0 0 0 / 22%);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 
 :root[data-theme="light"] .nav-dropdown,
 :root[data-theme="light"] .profile-dropdown,
 :root[data-theme="light"] .mobile-menu__panel {
-  border-color: rgb(0 0 0 / 7%);
-  background: rgb(255 255 255 / 94%);
+  border-color: var(--border);
+  background: var(--card);
   box-shadow: 0 14px 36px rgb(25 29 36 / 12%);
 }
 
@@ -1772,7 +1900,7 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .mobile-menu__nav {
@@ -1937,87 +2065,25 @@ select:focus-visible {
   padding: 32px 20px;
   overflow: hidden;
   color: #fcfcfd;
-  background:
-    radial-gradient(circle at 50% 40%, rgb(255 119 0 / 9%), transparent 32%),
-    linear-gradient(135deg, var(--secondary-950), var(--secondary-800));
+  background: var(--background);
 }
 
 .login-page .text-muted {
   color: var(--secondary-300);
 }
 
-.login-ambient {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.login-shape {
-  position: absolute;
-  display: block;
-  border: 1px solid rgb(255 255 255 / 20%);
-  background:
-    linear-gradient(145deg, rgb(255 255 255 / 24%), transparent 35%),
-    linear-gradient(135deg, var(--primary-300), var(--primary-700));
-  box-shadow:
-    inset -12px -14px 28px rgb(74 34 0 / 36%),
-    0 24px 54px rgb(255 119 0 / 18%);
-  filter: blur(0.2px);
-  opacity: 0.45;
-}
-
-.login-shape--one {
-  top: -86px;
-  left: 12%;
-  width: 260px;
-  height: 260px;
-  border-radius: 42% 58% 65% 35% / 46% 35% 65% 54%;
-  transform: rotate(22deg);
-}
-
-.login-shape--two {
-  top: 22%;
-  right: -100px;
-  width: 330px;
-  height: 210px;
-  border-radius: 65% 35% 42% 58% / 52% 62% 38% 48%;
-  transform: rotate(-18deg);
-  opacity: 0.3;
-}
-
-.login-shape--three {
-  bottom: -120px;
-  left: -70px;
-  width: 350px;
-  height: 300px;
-  border-radius: 36% 64% 48% 52% / 63% 40% 60% 37%;
-  transform: rotate(28deg);
-  opacity: 0.34;
-}
-
-.login-shape--four {
-  right: 20%;
-  bottom: -80px;
-  width: 210px;
-  height: 240px;
-  border-radius: 58% 42% 34% 66% / 38% 58% 42% 62%;
-  transform: rotate(-12deg);
-  opacity: 0.22;
-}
+/* Login ambient background removed */
 
 .login-card {
   position: relative;
   z-index: 2;
   width: min(100%, 380px);
   padding: 30px;
-  border-color: rgb(255 255 255 / 25%);
-  color: #fcfcfd;
-  background: rgb(255 255 255 / 12%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 35%),
-    0 24px 70px rgb(0 0 0 / 34%);
-  backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: var(--card);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 20%);
+  border-radius: var(--radius);
 }
 
 .login-card__brand {
@@ -2268,7 +2334,7 @@ select:focus-visible {
   flex: 0 0 auto;
   gap: 3px;
   padding: 3px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: rgb(255 255 255 / 5%);
 }
@@ -2341,7 +2407,7 @@ select:focus-visible {
 .chart-y-axis {
   flex: 0 0 46px;
   width: 46px;
-  border-right: 1px solid var(--glass-divider);
+  border-right: 1px solid var(--border);
 }
 
 .chart-y-axis svg {
@@ -2386,7 +2452,7 @@ select:focus-visible {
 }
 
 .chart-gridline {
-  stroke: var(--glass-divider);
+  stroke: var(--border);
   stroke-width: 1;
 }
 
@@ -2418,7 +2484,7 @@ select:focus-visible {
 
 .chart-tooltip rect {
   fill: var(--secondary-900);
-  stroke: var(--glass-border);
+  stroke: var(--border);
   stroke-width: 1;
 }
 
@@ -2448,7 +2514,7 @@ select:focus-visible {
   display: grid;
   gap: 14px;
   padding: 15px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 16px;
   background: rgb(255 255 255 / 6%);
 }
@@ -2492,7 +2558,7 @@ select:focus-visible {
   justify-content: space-between;
   padding: 10px 0 0;
   border: 0;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
   color: var(--primary-300);
   background: transparent;
   cursor: pointer;
@@ -2605,7 +2671,7 @@ select:focus-visible {
 
 .location-mini {
   padding: 13px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 14px;
   background: rgb(255 255 255 / 5%);
 }
@@ -2662,7 +2728,7 @@ select:focus-visible {
   flex-direction: column;
   gap: 6px;
   padding: 13px 5px;
-  border: 1px solid var(--glass-divider);
+  border: 1px solid var(--border);
   border-radius: 12px;
   text-align: center;
   background: rgb(255 255 255 / 5%);
@@ -2694,7 +2760,7 @@ select:focus-visible {
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .compact-list__row:last-child,
@@ -2720,7 +2786,7 @@ select:focus-visible {
   grid-template-columns: auto 1fr;
   gap: 10px;
   padding: 11px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .activity-item__dot {
@@ -3011,7 +3077,7 @@ select:focus-visible {
   display: grid;
   gap: 8px;
   padding: 8px 16px;
-  border-right: 1px solid var(--glass-divider);
+  border-right: 1px solid var(--border);
 }
 
 .severity-summary > div:last-child {
@@ -3038,7 +3104,7 @@ select:focus-visible {
   min-height: 40px;
   padding: 0 10px;
   border: 0;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   outline: 0;
   color: var(--text-primary);
@@ -3064,7 +3130,7 @@ select:focus-visible {
   gap: 18px;
   max-width: 760px;
   padding: 16px 0 22px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .audit-filters label {
@@ -3084,7 +3150,7 @@ select:focus-visible {
 .admin-tabs {
   display: flex;
   gap: 24px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .admin-tabs button {
@@ -3127,7 +3193,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 18px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .ews-grid label > span {
@@ -3141,7 +3207,7 @@ select:focus-visible {
   min-height: 36px;
   padding: 0 8px;
   border: 0;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   color: var(--text-primary);
   background: transparent;
@@ -3172,7 +3238,6 @@ select:focus-visible {
 @media print {
   .navbar,
   .page-actions,
-  .ambient,
   .drawer-layer,
   .toast {
     display: none !important;
@@ -3210,7 +3275,7 @@ select:focus-visible {
   }
 
   .severity-summary > div:nth-child(-n + 3) {
-    border-bottom: 1px solid var(--glass-divider);
+    border-bottom: 1px solid var(--border);
   }
 
   .ews-grid {
@@ -3239,8 +3304,8 @@ select:focus-visible {
   }
 
   .severity-summary > div {
-    border-right: 1px solid var(--glass-divider);
-    border-bottom: 1px solid var(--glass-divider);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
   .severity-summary > div:nth-child(even) {
@@ -3339,7 +3404,7 @@ select:focus-visible {
   align-items: center;
   gap: 20px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .request-list > div:last-child {
@@ -3398,7 +3463,7 @@ select:focus-visible {
 .timeline-list {
   display: grid;
   padding-left: 18px;
-  border-left: 1px solid var(--glass-divider);
+  border-left: 1px solid var(--border);
 }
 
 .timeline-list > div {
@@ -3437,7 +3502,7 @@ select:focus-visible {
   display: grid;
   gap: 16px;
   padding-top: 18px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .workflow-form + .button {
@@ -3529,10 +3594,6 @@ select:focus-visible {
 }
 
 /* Minimalist visual refinement */
-:root,
-:root[data-theme="light"] {
-  --glass-border: rgb(255 255 255 / 15%);
-}
 
 :root {
   --chart-disk: var(--secondary-600);
@@ -3548,13 +3609,7 @@ select:focus-visible {
   --navbar-ring: var(--secondary-100);
 }
 
-.glass-panel,
-.glass-card {
-  border-color: var(--glass-border);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 18%),
-    0 10px 28px rgb(0 0 0 / 16%);
-}
+/* Glass card shadow refinement */
 
 .button {
   border-radius: 10px;
@@ -3716,7 +3771,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 18px;
   padding: 18px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .notification-panel__list {
@@ -3729,7 +3784,7 @@ select:focus-visible {
   gap: 5px;
   padding: 14px 6px;
   border: 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
   color: inherit;
@@ -3913,7 +3968,7 @@ select:focus-visible {
 }
 
 .kpi-card {
-  background: var(--glass-fill);
+  background: var(--card);
 }
 
 .kpi-card--interactive {
@@ -3980,7 +4035,7 @@ select:focus-visible {
 .insight-item {
   padding: 18px 0;
   border: 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
@@ -4015,7 +4070,7 @@ select:focus-visible {
 .insight-link {
   display: block;
   padding-top: 10px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
   text-align: left;
 }
 
@@ -4026,7 +4081,7 @@ select:focus-visible {
 .location-mini {
   padding: 16px 0;
   border: 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
@@ -4046,7 +4101,7 @@ select:focus-visible {
 .funnel-stage {
   padding: 13px 8px;
   border: 0;
-  border-right: 1px solid var(--glass-divider);
+  border-right: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
@@ -4072,7 +4127,7 @@ select:focus-visible {
 .drawer-details > div {
   padding: 14px 0;
   border: 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   background: transparent;
 }
@@ -4124,7 +4179,7 @@ select:focus-visible {
 @media (max-width: 520px) {
   .funnel-stage {
     border-right: 0;
-    border-bottom: 1px solid var(--glass-divider);
+    border-bottom: 1px solid var(--border);
   }
 
   .funnel-stage:last-child {
@@ -4170,7 +4225,7 @@ select:focus-visible {
   min-height: 40px;
   padding: 0 10px;
   border: 0;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   outline: 0;
   color: var(--text-primary);
@@ -4201,7 +4256,7 @@ select:focus-visible {
   align-items: end;
   gap: 16px;
   padding: 18px 0 22px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .inventory-filters label {
@@ -4344,7 +4399,7 @@ select:focus-visible {
   justify-content: flex-end;
   gap: 10px;
   padding-top: 18px;
-  border-top: 1px solid var(--glass-divider);
+  border-top: 1px solid var(--border);
 }
 
 .asset-detail__header {
@@ -4384,7 +4439,7 @@ select:focus-visible {
   display: grid;
   gap: 5px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .asset-summary dt,
@@ -4449,7 +4504,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 20px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 .asset-detail__history {
@@ -4465,7 +4520,7 @@ select:focus-visible {
   display: grid;
   gap: 4px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
 }
 
 /* Monitoring */
@@ -4551,7 +4606,7 @@ select:focus-visible {
 }
 
 .comparison-bar--memory {
-  color: var(--page-start);
+  color: var(--background);
   background: var(--chart-memory);
 }
 
@@ -4573,7 +4628,7 @@ select:focus-visible {
 .forecast-table th,
 .forecast-table td {
   padding: 13px 14px;
-  border-bottom: 1px solid var(--glass-divider);
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
@@ -4815,22 +4870,7 @@ textarea {
   overflow: hidden;
 }
 
-.priority-scroll::after {
-  position: absolute;
-  right: 6px;
-  bottom: 0;
-  left: 0;
-  height: 32px;
-  opacity: 1;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--page-start));
-  content: "";
-  transition: opacity 160ms ease;
-}
-
-.priority-scroll--at-bottom::after {
-  opacity: 0;
-}
+/* Bottom fade gradient removed */
 
 .priority-scroll .insight-list {
   height: 100%;
@@ -5012,4 +5052,16 @@ textarea {
 
 .alert-funnel {
   align-self: start;
+}
+
+
+:root {
+  --background: #15181e;
+  --card: #191d24;
+  --popover: #191d24;
+}
+:root[data-theme="light"] {
+  --background: #f4f6f9; /* samakan dengan warna latar halaman terang kamu */
+  --card: #ffffff;
+  --popover: #ffffff;
 }

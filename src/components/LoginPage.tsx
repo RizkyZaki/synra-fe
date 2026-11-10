@@ -4,6 +4,7 @@ import { ApiError } from "../lib/api"
 import { login } from "../lib/auth"
 import type { SessionUser } from "../lib/useAccess"
 import { FormField } from "./ui"
+import { Button } from "@/components/ui/button"
 
 const iconProps = {
   size: 20,
@@ -51,13 +52,6 @@ export default function LoginPage({
 
   return (
     <main className="login-page">
-      <div className="login-ambient" aria-hidden="true">
-        <span className="login-shape login-shape--one" />
-        <span className="login-shape login-shape--two" />
-        <span className="login-shape login-shape--three" />
-        <span className="login-shape login-shape--four" />
-      </div>
-
       <section className="login-card glass-card" aria-labelledby="login-title">
         <div className="login-card__brand">
           <img
@@ -129,8 +123,8 @@ export default function LoginPage({
             </div>
           )}
 
-          <button
-            className="button button--primary login-submit"
+          <Button
+            className="login-submit w-full"
             type="submit"
             disabled={loading || success}
           >
@@ -141,21 +135,22 @@ export default function LoginPage({
             ) : (
               "Masuk"
             )}
-          </button>
+          </Button>
 
           <div className="login-divider">
             <span>atau lanjutkan dengan</span>
           </div>
 
-          <button
+          <Button
             type="button"
-            className="button button--secondary login-submit"
+            variant="outline"
+            className="login-submit w-full"
             onClick={() =>
               setFormError("Koneksi SSO AD/LDAP belum tersedia")
             }
           >
             Masuk dengan SSO (AD/LDAP)
-          </button>
+          </Button>
         </form>
       </section>
     </main>
