@@ -1,14 +1,11 @@
 /**
- * ui.tsx — Komponen bersama SYNRA
- *
- * Implementasi menggunakan shadcn/ui.
- * Semua nama export dan kontrak props publik DIPERTAHANKAN untuk kompatibilitas mundur.
+ * ui.tsx — Komponen bersama SYNRA (shadcn + efek Aceternity).
+ * Nama export dan kontrak props publik dipertahankan.
  */
 
-import { ArrowLeft, X, AlertTriangle, Inbox, type LucideIcon } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowUpRight, Eye, Inbox, type LucideIcon, X } from "lucide-react"
 import {
   type ComponentProps,
-  type HTMLAttributes,
   type ReactNode,
   useEffect,
   useMemo,
@@ -19,17 +16,8 @@ import { toast as sonnerToast } from "sonner"
 import type { Severity } from "../lib/synraDomain"
 import { cn } from "../lib/utils"
 
-// ── shadcn primitives ────────────────────────────────────────────────────────
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,32 +28,59 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { SpotlightCard } from "@/components/aceternity/spotlight-card"
+import { NumberTicker } from "@/components/aceternity/number-ticker"
 
-// ── GlassCard ────────────────────────────────────────────────────────────────
-/**
- * Kartu solid (nama export GlassCard tetap untuk backward-compatibility).
- */
-export function GlassCard({
-  className = "",
-  children,
-  ...props
-}: ComponentProps<"section">) {
+// ── Kartu dasar ─────────────────────────────────────────────────────────────
+export function GlassCard({ className = "", children, ...props }: ComponentProps<"section">) {
   return (
-    <section className={cn("glass-card rounded-[var(--radius-surface,12px)] border border-border bg-card shadow-xs", className)} {...props}>
+    <section
+      className={cn(
+        "glass-card relative rounded-[var(--radius-surface)] border border-border bg-card/90 shadow-[var(--card-shadow)] backdrop-blur-sm",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </section>
   )
 }
 
-// ── BackLink ─────────────────────────────────────────────────────────────────
+/** Judul kartu standar: judul, keterangan opsional, dan aksi di kanan. */
+export function CardHeading({
+  title,
+  description,
+  icon: Icon,
+  actions,
+  className,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  icon?: LucideIcon
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
+      <div className="flex min-w-0 items-start gap-3">
+        {Icon && (
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-muted text-primary">
+            <Icon size={17} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+        )}
+        <div className="min-w-0">
+          <h3 className="type-card-title">{title}</h3>
+          {description && <p className="type-meta mt-0.5">{description}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  )
+}
+
+// ── BackLink ────────────────────────────────────────────────────────────────
 export function BackLink({
   label,
   href,
@@ -81,27 +96,25 @@ export function BackLink({
     <Button
       variant="ghost"
       size="sm"
-      className={cn(
-        "h-[var(--control-height,38px)] gap-2 px-3 rounded-[var(--radius-control,10px)] text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center",
-        className
-      )}
+      className={cn("-ml-2 h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground", className)}
       onClick={(e) => {
         if (onClick) {
           e.preventDefault()
           onClick()
         }
       }}
+      nativeButton={!href}
       render={href ? <a href={href} /> : undefined}
     >
-      <ArrowLeft size={16} strokeWidth={2} />
+      <ArrowLeft size={14} strokeWidth={2} />
       <span>{label}</span>
     </Button>
   )
 }
 
-// ── PageHeader ───────────────────────────────────────────────────────────────
+// ── PageHeader ──────────────────────────────────────────────────────────────
 export function PageHeader({
-  eyebrow: _eyebrow,
+  eyebrow,
   title,
   badge,
   backTo,
@@ -118,36 +131,35 @@ export function PageHeader({
   className?: string
 }) {
   return (
-    <div className={cn("page-heading", className)}>
-      <div className="page-heading__copy">
+    <div className={cn("col-span-full flex flex-wrap items-end justify-between gap-4", className)}>
+      <div className="min-w-0">
         {backTo && (
-          <div className="mb-2">
-            <BackLink
-              label={backTo.label}
-              href={backTo.href}
-              onClick={() => onNavigate?.(backTo.href)}
-            />
-          </div>
+          <BackLink label={backTo.label} href={backTo.href} onClick={() => onNavigate?.(backTo.href)} className="mb-2" />
         )}
-        <div>
-          {/* Eyebrow dihapus dari render agar kartu/halaman punya satu judul bersih */}
-          <div className="page-heading__title-row flex items-center gap-3">
-            <h2 className="type-page-title">{title}</h2>
-            {badge}
-          </div>
-          {readOnly && (
-            <span className="type-meta text-muted-foreground mt-1 inline-block">
-              Akses baca saja
-            </span>
-          )}
+        {eyebrow && !backTo && (
+          <p className="mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-primary">
+            <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_rgb(255_122_26/90%)]" aria-hidden="true" />
+            {eyebrow}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="type-page-title bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
+            {title}
+          </h1>
+          {badge}
         </div>
       </div>
-      <div className="location-pills" />
+      {readOnly && (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
+          <Eye size={13} aria-hidden="true" />
+          Akses baca saja
+        </span>
+      )}
     </div>
   )
 }
 
-// ── PageLayout ───────────────────────────────────────────────────────────────
+// ── PageLayout ──────────────────────────────────────────────────────────────
 export function PageLayout({
   eyebrow,
   title,
@@ -168,7 +180,7 @@ export function PageLayout({
   children: ReactNode
 }) {
   return (
-    <main className="content">
+    <main className="mx-auto grid w-full max-w-[1480px] grid-cols-12 gap-6 px-4 pb-10 pt-6 md:px-8 md:pt-8 [&>*]:col-span-full">
       <PageHeader
         eyebrow={eyebrow}
         title={title}
@@ -183,7 +195,17 @@ export function PageLayout({
   )
 }
 
-// ── KpiCard ──────────────────────────────────────────────────────────────────
+// ── KpiCard ─────────────────────────────────────────────────────────────────
+const kpiToneAccent: Record<string, string> = {
+  danger: "from-danger/70",
+  critical: "from-danger/70",
+  high: "from-high/70",
+  warning: "from-warning/70",
+  success: "from-success/70",
+  good: "from-success/70",
+  neutral: "from-primary/60",
+}
+
 export function KpiCard({
   label,
   value,
@@ -202,8 +224,8 @@ export function KpiCard({
   onAction: () => void
 }) {
   return (
-    <GlassCard
-      className={cn("kpi-card kpi-card--interactive flex flex-col justify-between p-5", `kpi-card--tone-${tone}`)}
+    <SpotlightCard
+      className="kpi-card cursor-pointer outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring"
       role="link"
       tabIndex={0}
       onClick={onAction}
@@ -214,79 +236,121 @@ export function KpiCard({
         }
       }}
     >
-      <div className="kpi-card__top">
-        <span className="type-label text-muted-foreground">{label}</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-x-5 top-0 h-px bg-gradient-to-r to-transparent",
+          kpiToneAccent[tone] ?? "from-primary/60",
+        )}
+      />
+      <div className="flex h-full flex-col gap-3 p-5">
+        <div className="flex items-start justify-between gap-2">
+          <span className="type-label text-muted-foreground">{label}</span>
+          <ArrowUpRight
+            size={16}
+            className="shrink-0 text-muted-foreground transition-all group-hover/spot:-translate-y-0.5 group-hover/spot:translate-x-0.5 group-hover/spot:text-primary"
+            aria-hidden="true"
+          />
+        </div>
+        <div className="flex items-baseline gap-2">
+          <NumberTicker value={value} className="text-[32px] font-semibold leading-none tracking-tight" />
+          {tag && <span className="type-meta">{tag}</span>}
+        </div>
+        <p className="type-meta mt-auto truncate border-t border-border/70 pt-3" title={note}>
+          {note}
+        </p>
       </div>
-      <div className="kpi-card__value my-2 flex items-baseline gap-2">
-        <strong className="text-2xl font-bold tracking-tight">{value}</strong>
-        {tag && <span className="type-meta text-muted-foreground">{tag}</span>}
-      </div>
-      <div className="kpi-card__note flex items-center justify-between gap-2 pt-2 border-t border-border/50">
-        <span className="type-meta truncate" title={note}>{note}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-auto p-0 text-primary hover:bg-transparent font-medium"
-          onClick={(event) => {
-            event.stopPropagation()
-            onAction()
-          }}
-        >
-          Lihat
-        </Button>
-      </div>
-    </GlassCard>
+    </SpotlightCard>
   )
 }
 
-// ── SeverityBadge (Teks Murni Berwarna Tanpa Bungkus) ─────────────────────────
-const severityLabel: Record<Severity, string> = {
-  Normal:   "Normal",
-  Info:     "Info",
-  Low:      "Rendah",
-  Medium:   "Sedang",
-  High:     "Tinggi",
+/** Label filter severity untuk prop `items` pada Select (agar nilai tampil sebagai label). */
+export const SEVERITY_FILTER_ITEMS: Record<string, string> = {
+  Semua: "Semua",
+  Normal: "Normal",
+  Info: "Info",
+  Low: "Rendah",
+  Medium: "Sedang",
+  High: "Tinggi",
   Critical: "Kritis",
-  Expired:  "Kedaluwarsa",
 }
 
-const severityTextClass: Record<Severity, string> = {
-  Normal:   "text-[var(--status-success)]",
-  Info:     "text-[var(--status-success)]",
-  Low:      "text-[var(--status-warning)]",
-  Medium:   "text-[var(--status-warning)]",
-  High:     "text-[var(--status-high)]",
-  Critical: "text-[var(--status-danger)]",
-  Expired:  "text-[var(--status-danger)]",
+// ── Badge status dan severity ───────────────────────────────────────────────
+type Tone = "success" | "warning" | "high" | "danger" | "neutral" | "info"
+
+const toneClass: Record<Tone, string> = {
+  danger: "border-danger/25 bg-danger/10 text-danger",
+  high: "border-high/25 bg-high/10 text-high",
+  warning: "border-warning/25 bg-warning/10 text-warning",
+  success: "border-success/25 bg-success/10 text-success",
+  info: "border-info/25 bg-info/10 text-info",
+  neutral: "border-border bg-muted/70 text-muted-foreground",
 }
 
-export function SeverityBadge({
-  severity,
-  className,
-}: {
-  severity: Severity
-  className?: string
-}) {
+const dotClass: Record<Tone, string> = {
+  danger: "bg-danger shadow-[0_0_6px_var(--status-danger)]",
+  high: "bg-high",
+  warning: "bg-warning",
+  success: "bg-success",
+  info: "bg-info",
+  neutral: "bg-muted-foreground/60",
+}
+
+function Pill({ tone, children, pulse, className }: { tone: Tone; children: ReactNode; pulse?: boolean; className?: string }) {
   return (
-    <span className={cn("type-body font-semibold select-none", severityTextClass[severity], className)}>
-      {severityLabel[severity]}
+    <span
+      className={cn(
+        "inline-flex h-6 w-fit select-none items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-medium",
+        toneClass[tone],
+        className,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", dotClass[tone], pulse && "animate-pulse-ring")} aria-hidden="true" />
+      {children}
     </span>
   )
 }
 
-// ── StatusBadge (Teks Murni Berwarna Tanpa Bungkus) ───────────────────────────
+const severityLabel: Record<Severity, string> = {
+  Normal: "Normal",
+  Info: "Info",
+  Low: "Rendah",
+  Medium: "Sedang",
+  High: "Tinggi",
+  Critical: "Kritis",
+  Expired: "Kedaluwarsa",
+}
+
+const severityTone: Record<Severity, Tone> = {
+  Normal: "success",
+  Info: "info",
+  Low: "warning",
+  Medium: "warning",
+  High: "high",
+  Critical: "danger",
+  Expired: "danger",
+}
+
+export function SeverityBadge({ severity, className }: { severity: Severity; className?: string }) {
+  return (
+    <Pill tone={severityTone[severity]} pulse={severity === "Critical"} className={className}>
+      {severityLabel[severity]}
+    </Pill>
+  )
+}
+
 const statusLabels: Record<string, string> = {
-  Good:               "Baik",
-  Warning:            "Peringatan",
-  Critical:           "Kritis",
-  Online:             "Daring",
-  Offline:            "Luring",
-  Degraded:           "Menurun",
-  Renewed:            "Diperpanjang",
-  Terminated:         "Dihentikan",
-  Active:             "Aktif",
-  Inactive:           "Nonaktif",
-  "Menunggu Review":  "Menunggu tinjauan",
+  Good: "Baik",
+  Warning: "Peringatan",
+  Critical: "Kritis",
+  Online: "Daring",
+  Offline: "Luring",
+  Degraded: "Menurun",
+  Renewed: "Diperpanjang",
+  Terminated: "Dihentikan",
+  Active: "Aktif",
+  Inactive: "Nonaktif",
+  "Menunggu Review": "Menunggu tinjauan",
 }
 
 export function StatusBadge({
@@ -298,35 +362,34 @@ export function StatusBadge({
   tone?: "success" | "warning" | "danger" | "neutral"
   className?: string
 }) {
-  const getTone = (): "success" | "warning" | "high" | "danger" | "neutral" => {
-    if (tone === "danger") return "danger"
-    if (tone === "warning") return "warning"
-    if (tone === "success") return "success"
-    if (tone === "neutral") return "neutral"
+  const resolved = ((): Tone => {
+    if (tone) return tone
     const s = status.toLowerCase()
     if (s.includes("kritis") || s.includes("critical") || s.includes("offline") || s.includes("dihentikan")) return "danger"
     if (s.includes("tinggi") || s.includes("high") || s.includes("menurun") || s.includes("degraded")) return "high"
-    if (s.includes("peringatan") || s.includes("warning") || s.includes("sedang") || s.includes("rendah") || s.includes("tinjau")) return "warning"
-    if (s.includes("baik") || s.includes("good") || s.includes("online") || s.includes("aktif") || s.includes("normal") || s.includes("pulih") || s.includes("perpanjang")) return "success"
+    if (s.includes("peringatan") || s.includes("warning") || s.includes("sedang") || s.includes("rendah") || s.includes("tinjau"))
+      return "warning"
+    if (
+      s.includes("baik") ||
+      s.includes("good") ||
+      s.includes("online") ||
+      s.includes("aktif") ||
+      s.includes("normal") ||
+      s.includes("pulih") ||
+      s.includes("perpanjang")
+    )
+      return "success"
     return "neutral"
-  }
-
-  const toneClass: Record<string, string> = {
-    danger:  "text-[var(--status-danger)]",
-    high:    "text-[var(--status-high)]",
-    warning: "text-[var(--status-warning)]",
-    success: "text-[var(--status-success)]",
-    neutral: "text-[var(--status-neutral)]",
-  }
+  })()
 
   return (
-    <span className={cn("type-body font-semibold select-none", toneClass[getTone()], className)}>
+    <Pill tone={resolved} className={className}>
       {statusLabels[status] ?? status}
-    </span>
+    </Pill>
   )
 }
 
-// ── DataTable ────────────────────────────────────────────────────────────────
+// ── DataTable ───────────────────────────────────────────────────────────────
 export interface DataTableColumn<T> {
   key: string
   header: string
@@ -347,53 +410,61 @@ export function DataTable<T>({
   onRowClick?: (row: T) => void
 }) {
   return (
-    <div className="table-wrap overflow-x-auto w-full">
-      <Table className="data-table w-full">
+    <div className="w-full overflow-x-auto rounded-xl border border-border">
+      <Table className="w-full">
         <TableHeader>
-          <TableRow className="border-b border-border">
+          <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
             {columns.map((col) => (
-              <TableHead key={col.key} className="type-label text-muted-foreground h-10 px-3 py-2 text-left">
+              <TableHead key={col.key} className="type-label h-10 whitespace-nowrap px-3 text-left text-muted-foreground first:pl-4 last:pr-4">
                 {col.header}
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow
-              key={rowKey(row)}
-              data-severity={rowSeverity?.(row)}
-              className={cn(
-                "border-b border-border/50 transition-colors",
-                "data-[severity=Critical]:bg-[color-mix(in_srgb,var(--status-danger)_8%,transparent)]",
-                onRowClick && "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 outline-none"
-              )}
-              tabIndex={onRowClick ? 0 : undefined}
-              onClick={() => onRowClick?.(row)}
-              onKeyDown={(event) => {
-                if (
-                  onRowClick &&
-                  (event.key === "Enter" || event.key === " ")
-                ) {
-                  event.preventDefault()
-                  onRowClick(row)
-                }
-              }}
-            >
-              {columns.map((col) => (
-                <TableCell key={col.key} className="type-body px-3 py-2.5">
-                  {col.render(row)}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+          {rows.map((row) => {
+            const severity = rowSeverity?.(row)
+            return (
+              <TableRow
+                key={rowKey(row)}
+                data-severity={severity}
+                className={cn(
+                  "relative border-b border-border/60 transition-colors last:border-0",
+                  "data-[severity=Critical]:bg-danger/[0.06] data-[severity=Expired]:bg-danger/[0.06]",
+                  onRowClick && "cursor-pointer outline-none hover:bg-muted/60 focus-visible:bg-muted/60",
+                )}
+                tabIndex={onRowClick ? 0 : undefined}
+                onClick={() => onRowClick?.(row)}
+                onKeyDown={(event) => {
+                  if (onRowClick && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault()
+                    onRowClick(row)
+                  }
+                }}
+              >
+                {columns.map((col, index) => (
+                  <TableCell
+                    key={col.key}
+                    className={cn(
+                      "type-body px-3 py-3 first:pl-4 last:pr-4",
+                      index === 0 &&
+                        (severity === "Critical" || severity === "Expired") &&
+                        "shadow-[inset_2px_0_0_var(--status-danger)]",
+                    )}
+                  >
+                    {col.render(row)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>
   )
 }
 
-// ── FormField ────────────────────────────────────────────────────────────────
+// ── FormField ───────────────────────────────────────────────────────────────
 export function FormField({
   label,
   hint,
@@ -406,21 +477,17 @@ export function FormField({
   children: ReactNode
 }) {
   return (
-    <label className="form-field flex flex-col gap-1.5 w-full">
-      <span className="type-label text-muted-foreground">{label}</span>
-      <span className="form-control-slot w-full">
-        {children}
-      </span>
+    <label className="form-field flex w-full flex-col gap-1.5">
+      <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      <span className="form-control-slot w-full">{children}</span>
       {(error || hint) && (
-        <span className={cn("type-meta", error ? "text-[var(--status-danger)]" : "text-muted-foreground")}>
-          {error || hint}
-        </span>
+        <span className={cn("text-xs", error ? "text-danger" : "text-muted-foreground")}>{error || hint}</span>
       )}
     </label>
   )
 }
 
-// ── ConfirmDialog ─────────────────────────────────────────────────────────────
+// ── ConfirmDialog ───────────────────────────────────────────────────────────
 export function ConfirmDialog({
   open,
   title,
@@ -441,18 +508,19 @@ export function ConfirmDialog({
   onClose: () => void
 }) {
   return (
-    <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
-      <AlertDialogContent className="max-w-md p-6 bg-card border border-border rounded-[var(--radius-surface,12px)] shadow-xl">
+    <AlertDialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
+      <AlertDialogContent className="max-w-md rounded-2xl border border-border bg-popover p-6 shadow-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="type-card-title">{title}</AlertDialogTitle>
-          <AlertDialogDescription className="type-body text-muted-foreground mt-2">
-            {description}
-          </AlertDialogDescription>
+          <AlertDialogDescription className="type-body mt-2 text-muted-foreground">{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-6 flex justify-end gap-3">
-          <AlertDialogCancel onClick={onClose}>
-            {cancelLabel}
-          </AlertDialogCancel>
+          <AlertDialogCancel onClick={onClose}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             className={tone === "danger" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
@@ -465,36 +533,22 @@ export function ConfirmDialog({
   )
 }
 
-// ── Toast (adapter tipis → sonner) ───────────────────────────────────────────
-export function Toast({
-  message,
-  visible,
-  onClose,
-}: {
-  message: string
-  visible: boolean
-  onClose: () => void
-}) {
+// ── Toast (adapter tipis ke sonner) ─────────────────────────────────────────
+export function Toast({ message, visible, onClose }: { message: string; visible: boolean; onClose: () => void }) {
   const shownRef = useRef(false)
 
   useEffect(() => {
     if (visible && !shownRef.current) {
       shownRef.current = true
-      sonnerToast(message, {
-        duration: 3200,
-        onDismiss: onClose,
-        onAutoClose: onClose,
-      })
+      sonnerToast(message, { duration: 3200, onDismiss: onClose, onAutoClose: onClose })
     }
-    if (!visible) {
-      shownRef.current = false
-    }
+    if (!visible) shownRef.current = false
   }, [visible, message, onClose])
 
   return null
 }
 
-// ── EmptyState ───────────────────────────────────────────────────────────────
+// ── EmptyState ──────────────────────────────────────────────────────────────
 export function EmptyState({
   title,
   description,
@@ -511,14 +565,20 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cn("empty-state flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-surface,12px)] border border-border bg-card", className)}>
-      <div className="flex size-12 items-center justify-center rounded-[var(--radius-control,10px)] bg-muted text-muted-foreground mb-4">
-        <Icon size={24} />
+    <div
+      className={cn(
+        "relative flex flex-col items-center justify-center overflow-hidden rounded-[var(--radius-surface)] border border-dashed border-border bg-card/50 px-6 py-10 text-center",
+        className,
+      )}
+    >
+      <div className="bg-dots absolute inset-0 [mask-image:radial-gradient(circle,black,transparent_70%)]" aria-hidden="true" />
+      <div className="relative mb-4 grid size-12 place-items-center rounded-xl border border-border bg-muted text-muted-foreground">
+        <Icon size={22} />
       </div>
-      <h3 className="type-card-title">{title}</h3>
-      {description && <p className="type-body text-muted-foreground mt-1 max-w-sm">{description}</p>}
+      <h3 className="type-card-title relative">{title}</h3>
+      {description && <p className="type-body relative mt-1 max-w-sm text-muted-foreground">{description}</p>}
       {actionLabel && onAction && (
-        <Button variant="default" className="mt-4" onClick={onAction}>
+        <Button className="relative mt-4" onClick={onAction}>
           {actionLabel}
         </Button>
       )}
@@ -526,7 +586,7 @@ export function EmptyState({
   )
 }
 
-// ── Drawer (Sheet side="right" as fixed overlay) ──────────────────────────────
+// ── Drawer ──────────────────────────────────────────────────────────────────
 export function Drawer({
   open,
   title,
@@ -541,50 +601,57 @@ export function Drawer({
   actions?: ReactNode
 }) {
   return (
-    <Sheet open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Sheet
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="fixed inset-y-0 right-0 z-[101] w-full sm:max-w-md flex flex-col p-0 border-l border-border bg-card shadow-2xl"
+        className="fixed inset-y-0 right-0 z-[101] flex w-full flex-col border-l border-border bg-popover p-0 shadow-2xl sm:max-w-md"
       >
-        <SheetHeader className="drawer__header flex flex-row items-center justify-between p-5 pb-4 border-b border-border">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+        />
+        <SheetHeader className="flex flex-row items-center justify-between border-b border-border px-5 py-4">
           <SheetTitle className="type-card-title text-foreground">{title}</SheetTitle>
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={onClose}
             aria-label="Tutup"
-            className="rounded-[var(--radius-control,10px)] text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X aria-hidden="true" size={18} strokeWidth={2} />
-            <span className="sr-only">Tutup</span>
           </Button>
         </SheetHeader>
-        <div className="drawer__body flex-1 overflow-y-auto p-5">
-          {children}
-        </div>
+        <div className="drawer__body flex-1 overflow-y-auto p-5">{children}</div>
         {actions && (
-          <div className="drawer__footer flex items-center justify-end gap-3 p-5 pt-4 border-t border-border bg-card">
-            {actions}
-          </div>
+          <div className="flex items-center justify-end gap-3 border-t border-border bg-popover px-5 py-4">{actions}</div>
         )}
       </SheetContent>
     </Sheet>
   )
 }
 
-// ── LoadingState ──────────────────────────────────────────────────────────────
+// ── LoadingState ────────────────────────────────────────────────────────────
 export function LoadingState({ className }: { className?: string }) {
   return (
-    <div className={cn("loading-state p-6 flex flex-col gap-3 rounded-[var(--radius-surface,12px)] border border-border bg-card", className)} aria-label="Memuat">
-      <Skeleton className="h-6 w-48 rounded-[var(--radius-control,10px)]" />
-      <Skeleton className="h-4 w-full rounded-[var(--radius-control,10px)]" />
-      <Skeleton className="h-4 w-3/4 rounded-[var(--radius-control,10px)]" />
+    <div
+      className={cn("flex flex-col gap-3 rounded-[var(--radius-surface)] border border-border bg-card p-6", className)}
+      aria-label="Memuat"
+    >
+      <Skeleton className="h-6 w-48 rounded-lg" />
+      <Skeleton className="h-4 w-full rounded-lg" />
+      <Skeleton className="h-4 w-3/4 rounded-lg" />
     </div>
   )
 }
 
-// ── ErrorState ────────────────────────────────────────────────────────────────
+// ── ErrorState ──────────────────────────────────────────────────────────────
 export function ErrorState({
   title = "Data tidak dapat dimuat",
   message = "Periksa koneksi sistem lalu coba kembali.",
@@ -597,12 +664,18 @@ export function ErrorState({
   className?: string
 }) {
   return (
-    <div className={cn("empty-state flex flex-col items-center justify-center p-8 text-center rounded-[var(--radius-surface,12px)] border border-destructive/30 bg-card", className)} role="alert">
-      <div className="flex size-12 items-center justify-center rounded-[var(--radius-control,10px)] bg-destructive/10 text-destructive mb-4">
-        <AlertTriangle size={24} />
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center rounded-[var(--radius-surface)] border border-danger/30 bg-danger/[0.04] p-8 text-center",
+        className,
+      )}
+      role="alert"
+    >
+      <div className="mb-4 grid size-12 place-items-center rounded-xl bg-danger/10 text-danger">
+        <AlertTriangle size={22} />
       </div>
-      <h3 className="type-card-title text-destructive">{title}</h3>
-      <p className="type-body text-muted-foreground mt-1 max-w-sm">{message}</p>
+      <h3 className="type-card-title text-danger">{title}</h3>
+      <p className="type-body mt-1 max-w-sm text-muted-foreground">{message}</p>
       {onRetry && (
         <Button variant="outline" className="mt-4" onClick={onRetry}>
           Coba lagi
@@ -612,35 +685,32 @@ export function ErrorState({
   )
 }
 
-// ── ScopeNotice ───────────────────────────────────────────────────────────────
+// ── ScopeNotice ─────────────────────────────────────────────────────────────
 export function ScopeNotice({ children }: { children?: ReactNode }) {
   return (
-    <Alert className="scope-notice mb-4 border-warning/50 bg-warning/5 text-[var(--status-warning)]" role="note">
-      <AlertTitle className="type-label font-semibold">Belum tersedia di backend SYNRA</AlertTitle>
-      <AlertDescription className="type-body mt-1">
-        {children ??
-          "Fitur ini di luar cakupan pilot. Data yang tampil di halaman ini adalah contoh dan tidak tersimpan di server."}
-      </AlertDescription>
-    </Alert>
+    <div role="note" className="flex gap-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-4">
+      <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" aria-hidden="true" />
+      <div>
+        <p className="text-sm font-medium text-warning">Belum tersedia di backend SYNRA</p>
+        <p className="type-body mt-1 text-muted-foreground">
+          {children ??
+            "Fitur ini di luar cakupan pilot. Data yang tampil di halaman ini adalah contoh dan tidak tersimpan di server."}
+        </p>
+      </div>
+    </div>
   )
 }
 
-// ── ApiErrorBanner ────────────────────────────────────────────────────────────
-export function ApiErrorBanner({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry?: () => void
-}) {
+// ── ApiErrorBanner ──────────────────────────────────────────────────────────
+export function ApiErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
   if (!message) return null
   return (
-    <Alert variant="destructive" className="mb-4 flex items-center justify-between" role="alert">
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="size-4 shrink-0" />
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger/[0.06] p-4">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" />
         <div>
-          <AlertTitle className="type-label font-semibold">Gagal memuat data</AlertTitle>
-          <AlertDescription className="type-body">{message}</AlertDescription>
+          <p className="text-sm font-medium text-danger">Gagal memuat data</p>
+          <p className="type-body text-muted-foreground">{message}</p>
         </div>
       </div>
       {onRetry && (
@@ -648,23 +718,15 @@ export function ApiErrorBanner({
           Coba lagi
         </Button>
       )}
-    </Alert>
+    </div>
   )
 }
 
-// ── FilterField & PageToolbar (Step 4F) ─────────────────────────────────────────
-export function FilterField({
-  label,
-  children,
-  className,
-}: {
-  label: string
-  children: ReactNode
-  className?: string
-}) {
+// ── FilterField & PageToolbar ───────────────────────────────────────────────
+export function FilterField({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <span className="type-label text-muted-foreground">{label}</span>
+      <span className="text-[12px] font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
   )
@@ -680,20 +742,14 @@ export function PageToolbar({
   className?: string
 }) {
   return (
-    <div className={cn("flex flex-wrap items-end justify-between gap-3 w-full", className)}>
-      <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
-        {children}
-      </div>
-      {actions && (
-        <div className="flex items-center gap-2 shrink-0">
-          {actions}
-        </div>
-      )}
+    <div className={cn("flex w-full flex-wrap items-end justify-between gap-3", className)}>
+      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">{children}</div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   )
 }
 
-// ── usePagination & Pagination (Step 4F) ───────────────────────────────────────
+// ── usePagination & Pagination ──────────────────────────────────────────────
 export function usePagination<T>(rows: T[], pageSize = 10) {
   const [page, setPage] = useState(1)
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
@@ -704,20 +760,9 @@ export function usePagination<T>(rows: T[], pageSize = 10) {
 
   const startIndex = (page - 1) * pageSize
   const endIndex = Math.min(startIndex + pageSize, rows.length)
-  const paginatedRows = useMemo(
-    () => rows.slice(startIndex, endIndex),
-    [rows, startIndex, endIndex]
-  )
+  const paginatedRows = useMemo(() => rows.slice(startIndex, endIndex), [rows, startIndex, endIndex])
 
-  return {
-    page,
-    setPage,
-    totalPages,
-    startIndex,
-    endIndex,
-    totalRows: rows.length,
-    paginatedRows,
-  }
+  return { page, setPage, totalPages, startIndex, endIndex, totalRows: rows.length, paginatedRows }
 }
 
 export function Pagination({
@@ -738,59 +783,47 @@ export function Pagination({
   itemLabel?: string
 }) {
   const rangeSummary =
-    totalRows > 0
-      ? `Menampilkan ${startIndex + 1}–${endIndex} dari ${totalRows} ${itemLabel}`
-      : `Menampilkan 0 ${itemLabel}`
+    totalRows > 0 ? `Menampilkan ${startIndex + 1}–${endIndex} dari ${totalRows} ${itemLabel}` : `Menampilkan 0 ${itemLabel}`
 
-  const getPageNumbers = () => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1)
-    }
-    if (page <= 4) {
-      return [1, 2, 3, 4, 5, "ellipsis", totalPages]
-    }
-    if (page >= totalPages - 3) {
+  const pageNumbers = (): (number | "ellipsis")[] => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    if (page <= 4) return [1, 2, 3, 4, 5, "ellipsis", totalPages]
+    if (page >= totalPages - 3)
       return [1, "ellipsis", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
-    }
     return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", totalPages]
   }
 
   return (
-    <nav aria-label="Navigasi paginasi" className="flex flex-wrap items-center justify-between gap-3 pt-3 w-full">
+    <nav aria-label="Navigasi paginasi" className="flex w-full flex-wrap items-center justify-between gap-3 pt-4">
       <span className="type-meta">{rangeSummary}</span>
-      <div className="flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => onPageChange(page - 1)}
-        >
+      <div className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-start">
+        <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
           Sebelumnya
         </Button>
-        {getPageNumbers().map((num, idx) =>
+        <span className="text-xs tabular-nums text-muted-foreground sm:hidden">
+          {page} / {totalPages}
+        </span>
+        <span className="hidden items-center gap-1 sm:flex">
+        {pageNumbers().map((num, idx) =>
           num === "ellipsis" ? (
-            <span key={`el-${idx}`} className="px-2 text-muted-foreground select-none">
+            <span key={`el-${idx}`} className="select-none px-2 text-muted-foreground">
               …
             </span>
           ) : (
             <Button
               key={num}
-              variant={page === num ? "default" : "outline"}
+              variant={page === num ? "default" : "ghost"}
               size="sm"
               aria-current={page === num ? "page" : undefined}
-              className={page === num ? "border-transparent font-medium" : "font-normal"}
-              onClick={() => onPageChange(num as number)}
+              className={cn("min-w-8", page === num ? "font-semibold" : "font-normal")}
+              onClick={() => onPageChange(num)}
             >
               {num}
             </Button>
-          )
+          ),
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => onPageChange(page + 1)}
-        >
+        </span>
+        <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
           Berikutnya
         </Button>
       </div>

@@ -1,12 +1,16 @@
-import { Download, Pencil, Plus } from "lucide-react"
-import { useMemo, useState } from "react"
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, Download, Gauge, HardDrive, Pencil, Plus, Search } from "lucide-react"
+import { motion } from "motion/react"
+import { type ReactNode, useMemo, useState } from "react"
+import { cn } from "@/lib/utils"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { type AssetInput, useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
 import { formatDateTime } from "../lib/backend"
 import type { Asset } from "../lib/synraDomain"
 import {
+  SEVERITY_FILTER_ITEMS,
   ApiErrorBanner,
+  CardHeading,
   DataTable,
   Drawer,
   FilterField,
@@ -64,23 +68,22 @@ function formatUptime(ms: number | null | undefined) {
   return `${days} hari ${hours} jam`
 }
 
-function MetricBar({ label, value }: { label: string; value: number }) {
+function MetricBar({ label, value, compact = false }: { label: string; value: number; compact?: boolean }) {
+  const tone = value >= 90 ? "bg-danger" : value >= 80 ? "bg-warning" : "bg-primary"
   return (
-    <div className="metric-mini">
-      <div className="type-meta">
-        <span>{label}</span>
-        <span>{value.toLocaleString("id-ID")}%</span>
+    <div className={cn("min-w-0", compact ? "w-[120px]" : "w-full")}>
+      <div className={cn("mb-1 flex items-center justify-between gap-2", compact ? "text-[11px]" : "text-xs")}>
+        <span className="truncate text-muted-foreground">{label}</span>
+        <span className={cn("font-medium tabular-nums", value >= 90 ? "text-danger" : value >= 80 ? "text-warning" : "")}>
+          {value.toLocaleString("id-ID")}%
+        </span>
       </div>
-      <div className="metric-mini__track">
-        <span
-          className={
-            value >= 90
-              ? "metric-mini__fill metric-mini__fill--critical"
-              : value >= 80
-                ? "metric-mini__fill metric-mini__fill--warning"
-                : "metric-mini__fill"
-          }
-          style={{ width: `${Math.min(value, 100)}%` }}
+      <div className={cn("overflow-hidden rounded-full bg-muted", compact ? "h-1" : "h-1.5")}>
+        <motion.div
+          className={cn("h-full rounded-full", tone)}
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(value, 100)}%` }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
         />
       </div>
     </div>
@@ -139,7 +142,7 @@ function AssetFormDrawer({
       onClose={onClose}
     >
       <form
-        className="asset-form"
+        className="flex flex-col gap-4"
         onSubmit={async (event) => {
           event.preventDefault()
           setSaving(true)
@@ -183,7 +186,7 @@ function AssetFormDrawer({
         </FormField>
 
         <FormField label="Host">
-          <Select
+          <Select items={Object.fromEntries(api.hosts.map((h) => [h.id, h.name]))}
             value={form.hostId}
             onValueChange={(value) => updateField("hostId", value ?? "")}
           >
@@ -201,7 +204,7 @@ function AssetFormDrawer({
         </FormField>
 
         <FormField label="Kategori">
-          <Select
+          <Select items={CATEGORY_LABEL}
             value={form.category}
             onValueChange={(value) =>
               updateField("category", (value ?? "") as AssetForm["category"])
@@ -232,7 +235,7 @@ function AssetFormDrawer({
         </FormField>
 
         <FormField label="Supervisor" hint="Kosongkan bila Anda sendiri supervisornya">
-          <Select
+          <Select items={{ "": "Tanpa pilihan", ...Object.fromEntries(api.supervisors.map((s) => [s.id, s.fullName])) }}
             value={form.supervisorId}
             onValueChange={(value) => updateField("supervisorId", value ?? "")}
           >
@@ -273,12 +276,12 @@ function AssetFormDrawer({
         </FormField>
 
         {error && (
-          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+          <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
 
-        <div className="asset-form__actions">
+        <div className="sticky bottom-0 -mx-5 -mb-5 mt-2 flex justify-end gap-2 border-t border-border bg-popover px-5 py-4">
           <Button
             variant="outline"
             type="button"
@@ -295,151 +298,113 @@ function AssetFormDrawer({
   )
 }
 
-function AssetDetail({
-  asset,
-  onEdit,
-}: {
-  asset: Asset
-  onEdit: () => void
-}) {
+function AssetDetail({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
   const { read } = useSynraStore()
   const { can } = useAccess()
   // Aset boleh ditulis ADMIN dan SUPERVISOR, sama dengan pemegang hak approve.
   const canEdit = can("approve")
   const history = read("alerts").filter((alert) => alert.hostname === asset.name)
 
-  return (
-    <div className="asset-detail">
-      <div className="asset-detail__header">
-        <Button
-          onClick={onEdit}
-          {...restrictedAction(canEdit)}
-        >
-          <Pencil {...iconProps} />
-          Ubah data
-        </Button>
-      </div>
+  const meta: [string, ReactNode][] = [
+    ["Komponen", asset.type],
+    ["Host", asset.location],
+    ["Kategori", asset.category ? CATEGORY_LABEL[asset.category] : "—"],
+    ["Tipe", asset.assetType ?? "—"],
+    ["PIC", asset.pic],
+    ["Data terakhir", formatDateTime(asset.lastSeenAt ?? null)],
+  ]
+  const audit: [string, string][] = [
+    ["User input", asset.userInput ?? "—"],
+    ["Waktu input", formatDateTime(asset.dtimeInput ?? null)],
+    ["Supervisor input", asset.supervisorInput ?? "—"],
+    ["User update", asset.userUpdate ?? "—"],
+    ["Waktu update", formatDateTime(asset.timeUpdate ?? null)],
+    ["Supervisor update", asset.supervisorUpdate ?? "—"],
+  ]
 
-      <GlassCard className="asset-summary">
-        <div>
-          <span className="type-label text-muted-foreground">{asset.ipAddress}</span>
-          <h3 className="type-card-title">{asset.name}</h3>
-          <p className="type-body text-muted-foreground">{asset.note || "Tanpa catatan"}</p>
-        </div>
-        <dl className="asset-summary__meta">
-          <div>
-            <dt className="type-label text-muted-foreground">Komponen</dt>
-            <dd className="type-body">{asset.type}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Host</dt>
-            <dd className="type-body">{asset.location}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Kategori</dt>
-            <dd className="type-body">{asset.category ? CATEGORY_LABEL[asset.category] : "—"}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Tipe</dt>
-            <dd className="type-body">{asset.assetType ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">PIC</dt>
-            <dd className="type-body">{asset.pic}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Status</dt>
-            <dd className="type-body">
-              <StatusBadge
-                status={asset.status}
-                tone={statusTone(asset.status)}
-              />
-            </dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Severity</dt>
-            <dd className="type-body">
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <GlassCard className="min-w-0 overflow-hidden p-0">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 md:p-6">
+          <div className="min-w-0">
+            <span className="font-mono text-xs text-muted-foreground">{asset.ipAddress}</span>
+            <h2 className="mt-1 truncate text-xl font-semibold tracking-tight md:text-2xl">{asset.name}</h2>
+            <p className="type-body mt-1 text-muted-foreground">{asset.note || "Tanpa catatan"}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusBadge status={asset.status} tone={statusTone(asset.status)} />
               <SeverityBadge severity={asset.severity} />
-            </dd>
+            </div>
           </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Data terakhir</dt>
-            <dd className="type-body">{formatDateTime(asset.lastSeenAt ?? null)}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">User input</dt>
-            <dd className="type-body">{asset.userInput ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Waktu input</dt>
-            <dd className="type-body">{formatDateTime(asset.dtimeInput ?? null)}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Supervisor input</dt>
-            <dd className="type-body">{asset.supervisorInput ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">User update</dt>
-            <dd className="type-body">{asset.userUpdate ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Waktu update</dt>
-            <dd className="type-body">{formatDateTime(asset.timeUpdate ?? null)}</dd>
-          </div>
-          <div>
-            <dt className="type-label text-muted-foreground">Supervisor update</dt>
-            <dd className="type-body">{asset.supervisorUpdate ?? "—"}</dd>
-          </div>
+          <Button onClick={onEdit} {...restrictedAction(canEdit)}>
+            <Pencil {...iconProps} />
+            Ubah data
+          </Button>
+        </div>
+        <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
+          {meta.map(([label, value]) => (
+            <div key={label} className="min-w-0 bg-card p-4">
+              <dt className="type-label text-muted-foreground">{label}</dt>
+              <dd className="mt-1 truncate text-sm font-medium">{value}</dd>
+            </div>
+          ))}
         </dl>
+        <details className="group border-t border-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-xs text-muted-foreground hover:text-foreground md:px-6">
+            Jejak input & perubahan
+            <span className="transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-5 pb-5 sm:grid-cols-2 lg:grid-cols-3 md:px-6">
+            {audit.map(([label, value]) => (
+              <div key={label} className="flex min-w-0 justify-between gap-3 border-b border-border/60 pb-2 text-sm">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="truncate text-right">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
       </GlassCard>
 
-      <div className="asset-detail__grid">
-        <GlassCard className="asset-detail__section">
-          <span className="type-label text-muted-foreground">METRIK</span>
-          <h3 className="type-card-title">Utilisasi Saat Ini</h3>
-          <div className="asset-detail__metrics">
+      <div className="grid min-w-0 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
+          <CardHeading icon={Gauge} title="Utilisasi Saat Ini" description="Nilai metrik terbaru" />
+          <div className="flex flex-col gap-4">
             <MetricBar label="CPU" value={asset.cpu} />
-            <MetricBar label="Memory" value={asset.memory} />
+            <MetricBar label="Memori" value={asset.memory} />
             <MetricBar label="Disk" value={asset.disk} />
           </div>
         </GlassCard>
 
-        <GlassCard className="asset-detail__section">
-          <span className="type-label text-muted-foreground">DISK &amp; HOST</span>
-          <h3 className="type-card-title">Mount point</h3>
-          <div className="asset-detail__metrics">
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
+          <CardHeading icon={HardDrive} title="Mount Point" description={`Uptime ${formatUptime(asset.uptimeMs)}`} />
+          <div className="flex flex-col gap-4">
             {(asset.disks ?? []).map((disk) => (
               <MetricBar key={disk.mountPoint} label={disk.mountPoint} value={disk.value} />
             ))}
-            {(asset.disks ?? []).length === 0 && (
-              <p className="type-body text-muted-foreground">Belum ada data disk.</p>
-            )}
+            {(asset.disks ?? []).length === 0 && <p className="type-meta">Belum ada data disk.</p>}
           </div>
-          <p className="type-meta text-muted-foreground">
-            Uptime {formatUptime(asset.uptimeMs)} · log ERROR periode terakhir: {asset.logErrors ?? "—"}
+          <p className="type-meta mt-auto border-t border-border pt-3">
+            Log ERROR periode terakhir: <span className="font-medium text-foreground">{asset.logErrors ?? "—"}</span>
           </p>
         </GlassCard>
 
-        <GlassCard className="asset-detail__section asset-detail__history">
-          <span className="type-label text-muted-foreground">ALERT</span>
-          <h3 className="type-card-title">Riwayat Alert</h3>
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:col-span-2 xl:col-span-1">
+          <CardHeading icon={Bell} title="Riwayat Alert" description={`${history.length} alert tercatat`} />
           {history.length > 0 ? (
-            <div className="detail-history">
+            <ul className="flex max-h-[320px] flex-col gap-2 overflow-y-auto">
               {history.map((alert) => (
-                <div key={alert.id}>
-                  <strong className="type-body font-medium">
-                    {alert.id} · {alert.name}
-                  </strong>
-                  <span className="type-meta text-muted-foreground">
-                    {alert.severity} · {alert.status} · {alert.createdAt}
+                <li key={alert.id} className="min-w-0 rounded-lg border border-border bg-muted/40 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium">{alert.name}</span>
+                    <SeverityBadge severity={alert.severity} />
+                  </div>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {alert.id} · {alert.status} · {alert.createdAt}
                   </span>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           ) : (
-            <p className="type-body text-muted-foreground">
-              Belum ada alert untuk aset ini.
-            </p>
+            <p className="type-meta">Belum ada alert untuk aset ini.</p>
           )}
         </GlassCard>
       </div>
@@ -524,11 +489,11 @@ export default function AssetInventory({
   const selected = assets.find((asset) => asset.id === selectedId) ?? null
 
   const columns: DataTableColumn<Asset>[] = [
-    { key: "id", header: "IP", render: (asset) => asset.ipAddress },
+    { key: "id", header: "IP", render: (asset) => <span className="font-mono text-xs text-muted-foreground">{asset.ipAddress}</span> },
     {
       key: "name",
       header: "Hostname",
-      render: (asset) => <strong>{asset.name}</strong>,
+      render: (asset) => <strong className="whitespace-nowrap font-medium">{asset.name}</strong>,
     },
     { key: "type", header: "Komponen", render: (asset) => asset.type },
     { key: "location", header: "Host", render: (asset) => asset.location },
@@ -557,10 +522,10 @@ export default function AssetInventory({
       key: "metrics",
       header: "CPU / Mem / Disk",
       render: (asset) => (
-        <div className="table-metrics">
-          <MetricBar label="C" value={asset.cpu} />
-          <MetricBar label="M" value={asset.memory} />
-          <MetricBar label="D" value={asset.disk} />
+        <div className="flex flex-col gap-1.5">
+          <MetricBar compact label="CPU" value={asset.cpu} />
+          <MetricBar compact label="Mem" value={asset.memory} />
+          <MetricBar compact label="Disk" value={asset.disk} />
         </div>
       ),
     },
@@ -666,30 +631,27 @@ export default function AssetInventory({
   }
 
   return (
-    <div className="inventory-page">
+    <div className="flex min-w-0 flex-col gap-6">
       <ApiErrorBanner message={error} />
-      <GlassCard className="inventory-panel">
-        <PageToolbar
-          actions={
-            <>
-              <Button variant="outline" onClick={exportCsv}>
-                <Download {...iconProps} />
-                Ekspor CSV
-              </Button>
-              <Button
-                {...restrictedAction(canEdit)}
-                onClick={() => {
-                  setEditing(null)
-                  setDrawerOpen(true)
-                }}
-              >
-                <Plus {...iconProps} />
-                Tambah aset
-              </Button>
-            </>
-          }
-        >
-          <FilterField label="Pencarian" className="min-w-[260px] flex-1">
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          ["Total aset", assets.length, "text-foreground"],
+          ["Daring", assets.filter((a) => a.status === "Online").length, "text-success"],
+          ["Menurun / luring", assets.filter((a) => a.status === "Degraded" || a.status === "Offline").length, "text-danger"],
+          ["Ditampilkan", filtered.length, "text-primary"],
+        ].map(([label, value, tone]) => (
+          <GlassCard key={label as string} className="min-w-0 p-4">
+            <p className="type-label text-muted-foreground">{label}</p>
+            <p className={cn("mt-1 text-2xl font-semibold tabular-nums", tone as string)}>{value}</p>
+          </GlassCard>
+        ))}
+      </div>
+
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="asset-search"
               value={search}
@@ -698,12 +660,31 @@ export default function AssetInventory({
                 setPage(1)
               }}
               placeholder="Cari hostname, IP, komponen, atau PIC"
+              aria-label="Cari aset"
+              className="pl-9"
             />
-          </FilterField>
-        </PageToolbar>
+          </label>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 sm:flex-none" onClick={exportCsv}>
+              <Download {...iconProps} />
+              Ekspor CSV
+            </Button>
+            <Button
+              className="flex-1 sm:flex-none"
+              {...restrictedAction(canEdit)}
+              onClick={() => {
+                setEditing(null)
+                setDrawerOpen(true)
+              }}
+            >
+              <Plus {...iconProps} />
+              Tambah aset
+            </Button>
+          </div>
+        </div>
 
-        <div className="flex flex-wrap items-end gap-3 mt-4 mb-4">
-          <FilterField label="Komponen" className="w-[140px]">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))_auto] lg:items-end">
+          <FilterField label="Komponen">
             <Select
               value={typeFilter}
               onValueChange={(value) => {
@@ -725,8 +706,8 @@ export default function AssetInventory({
             </Select>
           </FilterField>
 
-          <FilterField label="Kategori" className="w-[140px]">
-            <Select
+          <FilterField label="Kategori">
+            <Select items={{ Semua: "Semua", ...CATEGORY_LABEL }}
               value={categoryFilter}
               onValueChange={(value) => {
                 setCategoryFilter(value ?? "Semua")
@@ -744,7 +725,7 @@ export default function AssetInventory({
             </Select>
           </FilterField>
 
-          <FilterField label="Host" className="w-[150px]">
+          <FilterField label="Host">
             <Select
               value={locationFilter}
               onValueChange={(value) => {
@@ -766,8 +747,8 @@ export default function AssetInventory({
             </Select>
           </FilterField>
 
-          <FilterField label="Status" className="w-[140px]">
-            <Select
+          <FilterField label="Status">
+            <Select items={{ Semua: "Semua", Online: "Daring", Degraded: "Menurun", Offline: "Luring (stale)", Nonaktif: "Nonaktif" }}
               value={statusFilter}
               onValueChange={(value) => {
                 setStatusFilter(value ?? "Semua")
@@ -787,8 +768,8 @@ export default function AssetInventory({
             </Select>
           </FilterField>
 
-          <FilterField label="Severity" className="w-[130px]">
-            <Select
+          <FilterField label="Severity">
+            <Select items={SEVERITY_FILTER_ITEMS}
               value={severityFilter}
               onValueChange={(value) => {
                 setSeverityFilter(value ?? "Semua")
@@ -810,20 +791,15 @@ export default function AssetInventory({
             </Select>
           </FilterField>
 
-          <FilterField label="Urutkan" className="w-[130px]">
-            <Select
-              value={sortBy}
-              onValueChange={(value) =>
-                setSortBy((value ?? "name") as typeof sortBy)
-              }
-            >
+          <FilterField label="Urutkan">
+            <Select items={{ name: "Hostname", cpu: "CPU", memory: "Memori", disk: "Disk" }} value={sortBy} onValueChange={(value) => setSortBy((value ?? "name") as typeof sortBy)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="name">Hostname</SelectItem>
                 <SelectItem value="cpu">CPU</SelectItem>
-                <SelectItem value="memory">Memory</SelectItem>
+                <SelectItem value="memory">Memori</SelectItem>
                 <SelectItem value="disk">Disk</SelectItem>
               </SelectContent>
             </Select>
@@ -831,9 +807,11 @@ export default function AssetInventory({
 
           <Button
             variant="outline"
-            className="h-[38px] px-3 font-normal"
+            className="self-end"
             onClick={() => setAscending((current) => !current)}
+            aria-label={ascending ? "Urutan naik" : "Urutan turun"}
           >
+            {ascending ? <ArrowUpNarrowWide {...iconProps} /> : <ArrowDownWideNarrow {...iconProps} />}
             {ascending ? "Naik" : "Turun"}
           </Button>
         </div>
@@ -867,11 +845,7 @@ export default function AssetInventory({
           onSave={saveAsset}
         />
       )}
-      <Toast
-        visible={toastVisible}
-        message="Data aset berhasil disimpan"
-        onClose={() => setToastVisible(false)}
-      />
+      <Toast visible={toastVisible} message="Data aset berhasil disimpan" onClose={() => setToastVisible(false)} />
     </div>
   )
 }

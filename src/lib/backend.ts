@@ -275,7 +275,7 @@ export const ROLE_OPTIONS: { value: BackendRole; label: string }[] = [
   { value: "AUDITOR", label: "Auditor (AUDITOR)" },
 ]
 
-const METRIC_LABEL: Record<RuleMetric, string> = {
+export const METRIC_LABEL: Record<RuleMetric, string> = {
   CPU: "CPU",
   MEMORY: "Memory",
   DISK: "Disk",

@@ -1,14 +1,17 @@
-import { Download, Printer } from "lucide-react"
+import { BarChart3, Download, FileSpreadsheet, Printer, Server, Siren } from "lucide-react"
+import { motion } from "motion/react"
 import { useEffect, useState } from "react"
+import { NumberTicker } from "@/components/aceternity/number-ticker"
+import { cn } from "@/lib/utils"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError, apiFetch } from "../lib/api"
 import { SEVERITY_TO_FE, STATUS_TO_FE, formatDateTime, type BackendAlertStatus, type BackendSeverity } from "../lib/backend"
 import {
   ApiErrorBanner,
+  CardHeading,
   DataTable,
   FilterField,
   GlassCard,
-  PageToolbar,
   SeverityBadge,
   Toast,
   type DataTableColumn,
@@ -110,10 +113,10 @@ export default function ReportsPage() {
       key: "asset",
       header: "Aset",
       render: (a) => (
-        <div className="table-primary">
-          <strong>{a.hostname}</strong>
-          <span className="type-meta text-muted-foreground">{a.component}</span>
-        </div>
+        <span className="flex flex-col">
+          <strong className="whitespace-nowrap font-medium">{a.hostname}</strong>
+          <span className="text-xs text-muted-foreground">{a.component}</span>
+        </span>
       ),
     },
     { key: "host", header: "Host", render: (a) => a.host },
@@ -125,8 +128,8 @@ export default function ReportsPage() {
   ]
 
   const alertColumns: DataTableColumn<DailyReport["alerts"][number]>[] = [
-    { key: "code", header: "ID", render: (a) => a.code },
-    { key: "problem", header: "Masalah", render: (a) => <strong>{a.problem}</strong> },
+    { key: "code", header: "ID", render: (a) => <span className="font-mono text-xs text-muted-foreground">{a.code}</span> },
+    { key: "problem", header: "Masalah", render: (a) => <strong className="font-medium">{a.problem}</strong> },
     { key: "host", header: "Aset", render: (a) => `${a.hostname} · ${a.host}` },
     { key: "severity", header: "Severity", render: (a) => <SeverityBadge severity={SEVERITY_TO_FE[a.severity]} /> },
     { key: "status", header: "Status", render: (a) => STATUS_TO_FE[a.status] },
@@ -134,110 +137,110 @@ export default function ReportsPage() {
   ]
 
   const s = report?.summary
+  const severityKeys = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as BackendSeverity[]
+  const maxSeverity = Math.max(1, ...severityKeys.map((key) => s?.detectedBySeverity[key] ?? 0))
+  const severityBar: Record<BackendSeverity, string> = {
+    CRITICAL: "bg-danger",
+    HIGH: "bg-high",
+    MEDIUM: "bg-warning",
+    LOW: "bg-warning/60",
+    INFO: "bg-info",
+  }
+
+  const summary: [string, string, string][] = [
+    ["Total aset", String(s?.totalAssets ?? "—"), `Laporan ${report?.date ?? date}`],
+    ["Rata-rata availability", s ? pct(s.availabilityAvgPct) : "—", "Data per menit"],
+    ["Alert terdeteksi", String(s?.alertsDetected ?? "—"), "Pada tanggal ini"],
+    ["Alert ditutup", String(s?.alertsClosed ?? "—"), "Pada tanggal ini"],
+  ]
 
   return (
-    <div className="reports-page">
+    <div className="flex min-w-0 flex-col gap-6">
       <ApiErrorBanner message={error} />
-      <PageToolbar
-        className="mb-6"
-        actions={
-          <>
+
+      <GlassCard className="min-w-0 p-4 md:p-5 print:hidden">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid grid-cols-2 gap-3 sm:flex">
+            <FilterField label="Tanggal" className="sm:w-[180px]">
+              <Input type="date" value={date} max={today()} onChange={(event) => setDate(event.target.value || today())} />
+            </FilterField>
+            <FilterField label="Host" className="sm:w-[180px]">
+              <Select items={{ "": "Semua", ...Object.fromEntries(api.hosts.map((h) => [h.id, h.name])) }} value={hostId} onValueChange={(val) => setHostId(val ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Semua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Semua</SelectItem>
+                  {api.hosts.map((host) => (
+                    <SelectItem key={host.id} value={host.id}>
+                      {host.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:flex">
             <Button variant="outline" onClick={() => exportFile("xlsx")} disabled={busy !== ""}>
-              <Download {...iconProps} />
-              {busy === "xlsx" ? "Mengekspor…" : "Ekspor XLSX"}
+              <FileSpreadsheet {...iconProps} />
+              {busy === "xlsx" ? "…" : "XLSX"}
             </Button>
             <Button variant="outline" onClick={() => exportFile("pdf")} disabled={busy !== ""}>
               <Download {...iconProps} />
-              {busy === "pdf" ? "Mengekspor…" : "Ekspor PDF"}
+              {busy === "pdf" ? "…" : "PDF"}
             </Button>
             <Button onClick={() => window.print()}>
               <Printer {...iconProps} />
               Cetak
             </Button>
-          </>
-        }
-      >
-        <FilterField label="Tanggal" className="w-[180px]">
-          <Input
-            type="date"
-            value={date}
-            max={today()}
-            onChange={(event) => setDate(event.target.value || today())}
-          />
-        </FilterField>
-        <FilterField label="Host" className="w-[180px]">
-          <Select
-            value={hostId}
-            onValueChange={(val) => setHostId(val ?? "")}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Semua" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Semua</SelectItem>
-              {api.hosts.map((host) => (
-                <SelectItem key={host.id} value={host.id}>
-                  {host.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-      </PageToolbar>
-
-      <div className="executive-summary">
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Total aset</span>
-          <strong className="bigcopy">{s?.totalAssets ?? "—"}</strong>
-          <span className="type-meta text-muted-foreground">Laporan {report?.date ?? date}</span>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Rata-rata availability</span>
-          <strong className="bigcopy">{s ? pct(s.availabilityAvgPct) : "—"}</strong>
-          <span className="type-meta text-muted-foreground">Data per menit</span>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Alert terdeteksi</span>
-          <strong className="bigcopy">{s?.alertsDetected ?? "—"}</strong>
-          <span className="type-meta text-muted-foreground">Pada tanggal ini</span>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Alert ditutup</span>
-          <strong className="bigcopy">{s?.alertsClosed ?? "—"}</strong>
-          <span className="type-meta text-muted-foreground">Pada tanggal ini</span>
-        </GlassCard>
-      </div>
-
-      <GlassCard className="report-severity">
-        <div className="section-heading mb-4">
-          <span className="type-label text-muted-foreground">ALERT</span>
-          <h3 className="type-card-title">Alert Terdeteksi per Severity</h3>
-        </div>
-        <div className="severity-summary">
-          {(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as BackendSeverity[]).map((severity) => (
-            <div key={severity}>
-              <SeverityBadge severity={SEVERITY_TO_FE[severity]} />
-              <strong className="bigcopy">{s?.detectedBySeverity[severity] ?? 0}</strong>
-            </div>
-          ))}
+          </div>
         </div>
       </GlassCard>
 
-      <GlassCard className="report-risk">
-        <div className="section-heading mb-4">
-          <span className="type-label text-muted-foreground">ASET</span>
-          <h3 className="type-card-title">Statistik per Aset</h3>
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        {summary.map(([label, value, hint]) => (
+          <GlassCard key={label} className="min-w-0 p-4 md:p-5">
+            <p className="type-label text-muted-foreground">{label}</p>
+            <NumberTicker value={value} className="mt-1.5 block text-2xl font-semibold tracking-tight md:text-3xl" />
+            <p className="type-meta mt-1 truncate">{hint}</p>
+          </GlassCard>
+        ))}
+      </div>
+
+      <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
+        <CardHeading icon={BarChart3} title="Alert Terdeteksi per Severity" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+          {severityKeys.map((severity, index) => {
+            const count = s?.detectedBySeverity[severity] ?? 0
+            return (
+              <div key={severity} className="min-w-0 rounded-xl border border-border bg-muted/40 p-4">
+                <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                  <SeverityBadge severity={SEVERITY_TO_FE[severity]} />
+                  <span className="text-2xl font-semibold tabular-nums">{count}</span>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <motion.div
+                    className={cn("h-full rounded-full", severityBar[severity])}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(count / maxSeverity) * 100}%` }}
+                    transition={{ duration: 0.7, delay: index * 0.05 }}
+                  />
+                </div>
+              </div>
+            )
+          })}
         </div>
+      </GlassCard>
+
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
+        <CardHeading icon={Server} title="Statistik per Aset" description={`${report?.assets.length ?? 0} aset`} />
         <DataTable columns={assetColumns} rows={report?.assets ?? []} rowKey={(a) => a.hostname} />
       </GlassCard>
 
-      <GlassCard className="report-requests">
-        <div className="section-heading mb-4">
-          <span className="type-label text-muted-foreground">ALERT</span>
-          <h3 className="type-card-title">Alert pada Tanggal Ini</h3>
-        </div>
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
+        <CardHeading icon={Siren} title="Alert pada Tanggal Ini" description={`${report?.alerts.length ?? 0} alert`} />
         {report && report.alerts.length === 0 ? (
-          <p className="type-body text-muted-foreground table-empty">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
+          <p className="type-meta">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
         ) : (
           <DataTable
             columns={alertColumns}

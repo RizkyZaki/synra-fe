@@ -1,3 +1,5 @@
+import { CheckCircle2, ClipboardCheck, Gauge, ListChecks, Radar, Workflow } from "lucide-react"
+import { motion } from "motion/react"
 import { useMemo, useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
@@ -5,7 +7,9 @@ import { ApiError } from "../lib/api"
 import { ALERT_EVENT_LABEL, STATUS_TO_FE, formatDateTime } from "../lib/backend"
 import type { AlertItem, AlertStatus } from "../lib/synraDomain"
 import {
+  SEVERITY_FILTER_ITEMS,
   ApiErrorBanner,
+  CardHeading,
   DataTable,
   FilterField,
   FormField,
@@ -21,22 +25,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-const statusFlow: AlertStatus[] = [
-  "Baru",
-  "Diakui",
-  "Dalam Penanganan",
-  "Menunggu Review",
-  "Ditutup",
-]
+const statusFlow: AlertStatus[] = ["Baru", "Diakui", "Dalam Penanganan", "Menunggu Review", "Ditutup"]
 
 const statusLabels: Record<AlertStatus, string> = {
   Baru: "Baru",
@@ -49,9 +41,7 @@ const statusLabels: Record<AlertStatus, string> = {
 export function alertStatusTone(status: AlertStatus) {
   if (status === "Ditutup") return "success" as const
   if (status === "Baru") return "danger" as const
-  if (status === "Dalam Penanganan" || status === "Menunggu Review") {
-    return "warning" as const
-  }
+  if (status === "Dalam Penanganan" || status === "Menunggu Review") return "warning" as const
   return "neutral" as const
 }
 
@@ -72,7 +62,7 @@ function WorkflowForm({
 
   return (
     <form
-      className="workflow-form"
+      className="flex flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (!note.trim()) {
@@ -88,12 +78,7 @@ function WorkflowForm({
       }}
     >
       <FormField label="Catatan">
-        <Textarea
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          rows={3}
-          placeholder="Tuliskan catatan penanganan"
-        />
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} placeholder="Tuliskan catatan penanganan" />
       </FormField>
       {requireEvidence && (
         <FormField label="Bukti remediasi">
@@ -105,17 +90,57 @@ function WorkflowForm({
         </FormField>
       )}
       {error && (
-        <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+        <p className="text-xs text-danger" role="alert">
           {error}
         </p>
       )}
-      <Button
-        type="submit"
-        {...restrictedAction(allowed)}
-      >
+      <Button type="submit" className="self-start" {...restrictedAction(allowed)}>
         {title}
       </Button>
     </form>
+  )
+}
+
+/** Jumlah alert per tahap; klik tahap untuk memfilter tabel. Dipindah dari dashboard. */
+function AlertFunnel({ active, onSelect }: { active: string; onSelect: (status: string) => void }) {
+  const { helpers } = useSynraStore()
+  const funnel = helpers.alertFunnel()
+  const max = Math.max(1, ...funnel.map((stage) => stage.count))
+  return (
+    <GlassCard className="min-w-0 p-4 md:p-5">
+      <CardHeading icon={Gauge} title="Tahap Alert" description="Klik tahap untuk memfilter tabel" className="mb-4" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {funnel.map((stage, index) => {
+          const selectedStage = active === stage.status
+          return (
+            <button
+              key={stage.status}
+              type="button"
+              aria-pressed={selectedStage}
+              onClick={() => onSelect(stage.status)}
+              className={cn(
+                "min-w-0 rounded-xl border p-3.5 text-left outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring",
+                selectedStage ? "border-primary/50 bg-primary/10" : "border-border bg-muted/40 hover:border-primary/30",
+              )}
+            >
+              <span className="type-label block text-muted-foreground">Tahap {index + 1}</span>
+              <span className="mt-2 block text-2xl font-semibold tabular-nums">{stage.count}</span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {statusLabels[stage.status as AlertStatus] ?? stage.status}
+              </span>
+              <span className="mt-3 block h-1 overflow-hidden rounded-full bg-muted">
+                <motion.span
+                  className="block h-full rounded-full bg-primary"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(stage.count / max) * 100}%` }}
+                  transition={{ duration: 0.7, delay: index * 0.06 }}
+                />
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </GlassCard>
   )
 }
 
@@ -143,31 +168,16 @@ export default function AlertIncidentPage({
     () =>
       alerts.filter(
         (alert) =>
-          (severityFilter === "Semua" ||
-            alert.severity === severityFilter) &&
+          (severityFilter === "Semua" || alert.severity === severityFilter) &&
           (statusFilter === "Semua" || alert.status === statusFilter),
       ),
     [alerts, severityFilter, statusFilter],
   )
 
-  const {
-    page,
-    setPage,
-    totalPages,
-    startIndex,
-    endIndex,
-    totalRows,
-    paginatedRows,
-  } = usePagination(filtered, 10)
+  const { page, setPage, totalPages, startIndex, endIndex, totalRows, paginatedRows } = usePagination(filtered, 10)
 
   /** Perubahan status dikirim ke backend; backend memvalidasi alur, role, dan mencatat audit. */
-  const changeStatus = async (
-    alert: AlertItem,
-    action: AlertTransition,
-    target: AlertStatus,
-    note?: string,
-    evidence?: string,
-  ) => {
+  const changeStatus = async (alert: AlertItem, action: AlertTransition, target: AlertStatus, note?: string, evidence?: string) => {
     if (!alert.apiId) return
     setBusy(true)
     try {
@@ -185,11 +195,7 @@ export default function AlertIncidentPage({
     setBusy(true)
     try {
       const result = await actions.evaluateAlerts()
-      setToast(
-        result.created > 0
-          ? `${result.created} alert baru dibuat`
-          : "Tidak ada alert baru; duplikat terbuka dilewati",
-      )
+      setToast(result.created > 0 ? `${result.created} alert baru dibuat` : "Tidak ada alert baru; duplikat terbuka dilewati")
     } catch (e) {
       setToast(e instanceof ApiError ? e.message : "Evaluasi gagal")
     } finally {
@@ -198,195 +204,236 @@ export default function AlertIncidentPage({
   }
 
   const columns: DataTableColumn<AlertItem>[] = [
-    { key: "id", header: "ID", render: (alert) => alert.id },
+    { key: "id", header: "ID", render: (alert) => <span className="font-mono text-xs text-muted-foreground">{alert.id}</span> },
     {
       key: "name",
       header: "Alert",
       render: (alert) => (
-        <>
-          <strong>{alert.name}</strong>
+        <span className="flex min-w-[240px] max-w-[420px] flex-wrap items-center gap-2 whitespace-normal">
+          <strong className="font-medium">{alert.name}</strong>
           {alert.conditionActive === false && alert.status !== "Ditutup" && (
-            <span className="recovered-tag">kondisi pulih</span>
+            <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[11px] text-success">
+              kondisi pulih
+            </span>
           )}
-        </>
+        </span>
       ),
     },
     { key: "type", header: "Jenis", render: (alert) => alert.type },
     { key: "location", header: "Host", render: (alert) => alert.location },
     { key: "pic", header: "PIC", render: (alert) => alert.pic },
-    {
-      key: "severity",
-      header: "Severity",
-      render: (alert) => <SeverityBadge severity={alert.severity} />,
-    },
+    { key: "severity", header: "Severity", render: (alert) => <SeverityBadge severity={alert.severity} /> },
     {
       key: "status",
       header: "Status",
-      render: (alert) => (
-        <StatusBadge
-          status={alert.status}
-          tone={alertStatusTone(alert.status)}
-        />
-      ),
+      render: (alert) => <StatusBadge status={alert.status} tone={alertStatusTone(alert.status)} />,
     },
     {
       key: "created",
       header: "Dibuat",
-      render: (alert) => alert.createdAt,
+      render: (alert) => <span className="whitespace-nowrap text-muted-foreground">{alert.createdAt}</span>,
     },
   ]
 
   if (selected) {
+    const currentStep = statusFlow.indexOf(selected.status)
     return (
-      <div className="alert-detail">
-        <GlassCard className="alert-detail__summary">
-          <div>
-            <span className="type-label text-muted-foreground">{selected.id}</span>
-            <h3 className="type-page-title">{selected.name}</h3>
-            <p className="type-meta text-muted-foreground">
-              {selected.hostname} · {selected.component} · PIC {selected.pic}
-            </p>
-            <p className="type-meta text-muted-foreground">
-              Nilai terakhir {selected.value?.toLocaleString("id-ID")} (batas{" "}
-              {selected.threshold?.toLocaleString("id-ID")}) · terdeteksi {selected.createdAt}
-              {selected.conditionActive === false && " · kondisi sudah normal kembali"}
-            </p>
-            <p className="type-body mt-2">
-              <strong>Rekomendasi:</strong> {selected.recommendation}
-            </p>
-            {selected.closeNote && (
-              <p className="type-body mt-1">
-                <strong>Catatan penutupan:</strong> {selected.closeNote}
-              </p>
+      <div className="flex min-w-0 flex-col gap-6">
+        <GlassCard className="overflow-hidden p-0">
+          <div
+            aria-hidden="true"
+            className={cn(
+              "h-1 w-full bg-gradient-to-r",
+              selected.severity === "Critical"
+                ? "from-danger via-danger/60 to-transparent"
+                : selected.severity === "High"
+                  ? "from-high via-high/60 to-transparent"
+                  : "from-warning via-warning/50 to-transparent",
             )}
-          </div>
-          <SeverityBadge severity={selected.severity} />
-        </GlassCard>
-
-        <div className="alert-detail__grid">
-          <GlassCard className="alert-timeline">
-            <div className="section-heading mb-4">
-              <span className="type-label text-muted-foreground">TIMELINE</span>
-              <h3 className="type-card-title">Riwayat Penanganan</h3>
+          />
+          <div className="flex flex-col gap-5 p-5 md:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-mono text-xs text-muted-foreground">{selected.id}</span>
+                <h2 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">{selected.name}</h2>
+                <p className="type-meta mt-1">
+                  {selected.hostname} · {selected.component} · PIC {selected.pic}
+                </p>
+              </div>
+              <SeverityBadge severity={selected.severity} />
             </div>
-            <div className="timeline-list">
-              {events.map((event) => (
-                <div key={event.id} className="flex flex-col gap-1 pb-3">
-                  <strong className="type-body font-medium">
-                    {ALERT_EVENT_LABEL[event.action] ?? event.action}
-                    {event.fromStatus ? ` · ${STATUS_TO_FE[event.fromStatus]} → ${STATUS_TO_FE[event.toStatus]}` : ""}
-                  </strong>
-                  {event.note && <span className="type-body text-foreground">{event.note}</span>}
-                  {event.evidence && (
-                    <span className="type-body text-foreground">Bukti: {event.evidence}</span>
-                  )}
-                  <span className="type-meta text-muted-foreground">
-                    {event.actorUsername} · {formatDateTime(event.createdAt)}
-                  </span>
+
+            <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                ["Nilai terakhir", selected.value?.toLocaleString("id-ID") ?? "—"],
+                ["Batas", selected.threshold?.toLocaleString("id-ID") ?? "—"],
+                ["Terdeteksi", selected.createdAt],
+                ["Kondisi", selected.conditionActive === false ? "Sudah normal" : "Masih aktif"],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0 rounded-xl border border-border bg-muted/40 p-3">
+                  <dt className="type-label text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 truncate text-sm font-medium" title={value}>
+                    {value}
+                  </dd>
                 </div>
               ))}
+            </dl>
+
+            <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-4">
+              <p className="type-label mb-1 text-primary">Rekomendasi</p>
+              <p className="type-body">{selected.recommendation}</p>
+              {selected.closeNote && (
+                <p className="type-body mt-2 text-muted-foreground">
+                  <strong className="font-medium text-foreground">Catatan penutupan:</strong> {selected.closeNote}
+                </p>
+              )}
             </div>
+          </div>
+        </GlassCard>
+
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+          <GlassCard className="min-w-0 p-5 md:p-6">
+            <CardHeading icon={ListChecks} title="Riwayat Penanganan" description="Timeline perubahan status" className="mb-5" />
+            {events.length === 0 ? (
+              <p className="type-meta">Belum ada riwayat.</p>
+            ) : (
+              <ol className="relative flex flex-col gap-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-border">
+                {events.map((event, index) => (
+                  <motion.li
+                    key={event.id}
+                    className="relative min-w-0 pl-6"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <span className="absolute left-0 top-1 size-[11px] rounded-full border-2 border-card bg-primary ring-1 ring-primary/30" />
+                    <p className="text-sm font-medium">
+                      {ALERT_EVENT_LABEL[event.action] ?? event.action}
+                      {event.fromStatus ? (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {STATUS_TO_FE[event.fromStatus]} → {STATUS_TO_FE[event.toStatus]}
+                        </span>
+                      ) : null}
+                    </p>
+                    {event.note && <p className="type-body mt-1 break-words">{event.note}</p>}
+                    {event.evidence && <p className="type-body mt-1 break-words text-muted-foreground">Bukti: {event.evidence}</p>}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {event.actorUsername} · {formatDateTime(event.createdAt)}
+                    </p>
+                  </motion.li>
+                ))}
+              </ol>
+            )}
           </GlassCard>
 
-          <GlassCard className="alert-workflow">
-            <div className="section-heading mb-4">
-              <span className="type-label text-muted-foreground">TINDAKAN</span>
-              <h3 className="type-card-title">Alur Status</h3>
-            </div>
-            <div className="status-flow mb-6">
-              {statusFlow.map((status) => (
-                <span
-                  key={status}
-                  className={cn("type-body", status === selected.status ? "current" : "")}
-                >
-                  {statusLabels[status]}
-                </span>
-              ))}
-            </div>
-            {selected.status === "Baru" && (
-              <Button
-                {...restrictedAction(canEdit && !busy)}
-                onClick={() => changeStatus(selected, "acknowledge", "Diakui")}
-              >
-                Akui Alert
-              </Button>
-            )}
-            {selected.status === "Diakui" && (
-              <WorkflowForm
-                title="Mulai Remediasi"
-                allowed={canEdit}
-                onSubmit={(note) =>
-                  changeStatus(selected, "start", "Dalam Penanganan", note)
-                }
-              />
-            )}
-            {selected.status === "Dalam Penanganan" && (
-              <WorkflowForm
-                title="Ajukan Review Penutupan"
-                allowed={canEdit}
-                requireEvidence
-                onSubmit={(note, evidence) =>
-                  changeStatus(
-                    selected,
-                    "submit-review",
-                    "Menunggu Review",
-                    note,
-                    evidence,
-                  )
-                }
-              />
-            )}
-            {selected.status === "Menunggu Review" && canApprove && (
-              <div className="flex flex-col gap-4">
+          <GlassCard className="min-w-0 p-5 md:p-6">
+            <CardHeading icon={Workflow} title="Alur Status" description="Tindakan sesuai tahap saat ini" className="mb-5" />
+            <ol className="mb-6 flex flex-col">
+              {statusFlow.map((status, index) => {
+                const done = index < currentStep
+                const current = index === currentStep
+                return (
+                  <li key={status} className="relative flex items-center gap-3 pb-3 last:pb-0">
+                    {index < statusFlow.length - 1 && (
+                      <span
+                        className={cn("absolute left-[11px] top-6 h-[calc(100%-12px)] w-px", done ? "bg-primary/60" : "bg-border")}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span
+                      className={cn(
+                        "relative grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold",
+                        done && "border-primary/50 bg-primary/15 text-primary",
+                        current && "border-primary bg-primary text-primary-foreground shadow-[0_0_14px_rgb(255_122_26/60%)]",
+                        !done && !current && "border-border bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {done ? <CheckCircle2 size={13} /> : index + 1}
+                    </span>
+                    <span className={cn("text-sm", current ? "font-medium text-foreground" : "text-muted-foreground")}>
+                      {statusLabels[status]}
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
+            <div className="border-t border-border pt-5">
+              {selected.status === "Baru" && (
+                <Button {...restrictedAction(canEdit && !busy)} onClick={() => changeStatus(selected, "acknowledge", "Diakui")}>
+                  <ClipboardCheck /> Akui Alert
+                </Button>
+              )}
+              {selected.status === "Diakui" && (
                 <WorkflowForm
-                  title="Kembalikan"
-                  allowed={canApprove}
-                  onSubmit={(note) =>
-                    changeStatus(selected, "return", "Dalam Penanganan", note)
-                  }
+                  title="Mulai Remediasi"
+                  allowed={canEdit}
+                  onSubmit={(note) => changeStatus(selected, "start", "Dalam Penanganan", note)}
                 />
+              )}
+              {selected.status === "Dalam Penanganan" && (
                 <WorkflowForm
-                  title="Setujui & Tutup"
-                  allowed={canApprove}
-                  onSubmit={(note) =>
-                    changeStatus(selected, "close", "Ditutup", note)
-                  }
+                  title="Ajukan Review Penutupan"
+                  allowed={canEdit}
+                  requireEvidence
+                  onSubmit={(note, evidence) => changeStatus(selected, "submit-review", "Menunggu Review", note, evidence)}
                 />
-              </div>
-            )}
-            {selected.status === "Ditutup" && (
-              <p className="type-body text-muted-foreground">
-                Alert telah ditutup dan tidak memerlukan tindakan lanjutan.
-              </p>
-            )}
+              )}
+              {selected.status === "Menunggu Review" && canApprove && (
+                <div className="flex flex-col gap-5">
+                  <WorkflowForm
+                    title="Kembalikan"
+                    allowed={canApprove}
+                    onSubmit={(note) => changeStatus(selected, "return", "Dalam Penanganan", note)}
+                  />
+                  <div className="border-t border-border pt-5">
+                    <WorkflowForm
+                      title="Setujui & Tutup"
+                      allowed={canApprove}
+                      onSubmit={(note) => changeStatus(selected, "close", "Ditutup", note)}
+                    />
+                  </div>
+                </div>
+              )}
+              {selected.status === "Menunggu Review" && !canApprove && (
+                <p className="type-body text-muted-foreground">Menunggu persetujuan Supervisor atau Administrator.</p>
+              )}
+              {selected.status === "Ditutup" && (
+                <p className="type-body flex items-center gap-2 text-muted-foreground">
+                  <CheckCircle2 size={16} className="shrink-0 text-success" /> Alert telah ditutup dan tidak memerlukan tindakan lanjutan.
+                </p>
+              )}
+            </div>
           </GlassCard>
         </div>
 
-        <Toast
-          visible={Boolean(toast)}
-          message={toast}
-          onClose={() => setToast("")}
-        />
+        <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
       </div>
     )
   }
 
   return (
-    <div className="alert-page">
+    <div className="flex min-w-0 flex-col gap-6">
       <ApiErrorBanner message={error} />
-      <GlassCard className="alert-table">
+
+      <AlertFunnel
+        active={statusFilter}
+        onSelect={(status) => {
+          setStatusFilter((current) => (current === status ? "Semua" : status))
+          setPage(1)
+        }}
+      />
+
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
         <PageToolbar
           actions={
-            <Button
-              onClick={() => void evaluateEws()}
-              {...restrictedAction(canConfig && !busy)}
-            >
-              Evaluasi EWS
+            <Button onClick={() => void evaluateEws()} {...restrictedAction(canConfig && !busy)}>
+              <Radar /> Evaluasi EWS
             </Button>
           }
         >
-          <FilterField label="Severity" className="w-[160px]">
-            <Select
+          <FilterField label="Severity" className="w-full sm:w-[160px]">
+            <Select items={SEVERITY_FILTER_ITEMS}
               value={severityFilter}
               onValueChange={(value) => {
                 setSeverityFilter(value ?? "Semua")
@@ -408,8 +455,8 @@ export default function AlertIncidentPage({
             </Select>
           </FilterField>
 
-          <FilterField label="Status" className="w-[180px]">
-            <Select
+          <FilterField label="Status" className="w-full sm:w-[180px]">
+            <Select items={{ Semua: "Semua", ...statusLabels }}
               value={statusFilter}
               onValueChange={(value) => {
                 setStatusFilter(value ?? "Semua")
@@ -431,15 +478,13 @@ export default function AlertIncidentPage({
           </FilterField>
         </PageToolbar>
 
-        <div className="mt-4">
-          <DataTable
-            columns={columns}
-            rows={paginatedRows}
-            rowKey={(alert) => alert.id}
-            rowSeverity={(alert) => alert.severity}
-            onRowClick={(alert) => onSelectedIdChange(alert.id)}
-          />
-        </div>
+        <DataTable
+          columns={columns}
+          rows={paginatedRows}
+          rowKey={(alert) => alert.id}
+          rowSeverity={(alert) => alert.severity}
+          onRowClick={(alert) => onSelectedIdChange(alert.id)}
+        />
 
         <Pagination
           page={page}
@@ -451,11 +496,7 @@ export default function AlertIncidentPage({
           itemLabel="alert"
         />
       </GlassCard>
-      <Toast
-        visible={Boolean(toast)}
-        message={toast}
-        onClose={() => setToast("")}
-      />
+      <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
     </div>
   )
 }

@@ -1,5 +1,7 @@
-﻿import { Pencil, Plus } from "lucide-react"
+﻿import { CalendarClock, Check, ClipboardList, Pencil, Plus, RefreshCw, X } from "lucide-react"
+import { motion } from "motion/react"
 import { useMemo, useState } from "react"
+import { cn } from "@/lib/utils"
 import { ApiError } from "../lib/api"
 import {
   LIFECYCLE_CATEGORY_TO_BE,
@@ -13,8 +15,10 @@ import type {
   Severity,
 } from "../lib/synraDomain"
 import {
+  CardHeading,
   DataTable,
   Drawer,
+  EmptyState,
   FormField,
   GlassCard,
   SeverityBadge,
@@ -57,7 +61,7 @@ const lifecycleCardTitles: Record<LifecyclePageName, string> = {
 }
 
 const iconProps = {
-  size: 20,
+  size: 16,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -75,7 +79,7 @@ function ExpiryStatus({ days }: { days: number }) {
   const { helpers } = useSynraStore()
   const severity = helpers.lifecycleSeverity(days)
   if (severity === "Expired") {
-    return <span className="badge badge--danger">Kedaluwarsa</span>
+    return <SeverityBadge severity="Expired" />
   }
   return <SeverityBadge severity={severity as Severity} />
 }
@@ -127,7 +131,7 @@ function LifecycleFormDrawer({
   return (
     <Drawer open title={title} onClose={onClose}>
       <form
-        className="asset-form"
+        className="flex flex-col gap-4"
         onSubmit={async (event) => {
           event.preventDefault()
           if (!values.name.trim()) return setError("Nama wajib diisi.")
@@ -157,6 +161,7 @@ function LifecycleFormDrawer({
         <FormField label="Vendor">
           <Input value={values.vendor} onChange={(event) => set("vendor", event.target.value)} />
         </FormField>
+        <div className="grid grid-cols-2 gap-3">
         <FormField label="Jumlah / kuota">
           <Input
             type="number"
@@ -173,6 +178,7 @@ function LifecycleFormDrawer({
             onChange={(event) => set("allocated", Number(event.target.value))}
           />
         </FormField>
+        </div>
         <FormField label="Tanggal berakhir">
           <Input
             type="date"
@@ -181,7 +187,7 @@ function LifecycleFormDrawer({
           />
         </FormField>
         <FormField label="Status">
-          <Select
+          <Select items={{ Aktif: "Aktif", Renewed: "Diperpanjang", Terminated: "Dihentikan", Nonaktif: "Nonaktif" }}
             value={values.status}
             onValueChange={(val) => set("status", val ?? "Aktif")}
           >
@@ -197,11 +203,11 @@ function LifecycleFormDrawer({
           </Select>
         </FormField>
         {error && (
-          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+          <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
-        <div className="asset-form__actions">
+        <div className="sticky bottom-0 -mx-5 -mb-5 mt-2 flex justify-end gap-2 border-t border-border bg-popover px-5 py-4">
           <Button variant="outline" type="button" onClick={onClose}>Batal</Button>
           <Button type="submit" disabled={saving}>{saving ? "Menyimpan…" : "Simpan"}</Button>
         </div>
@@ -233,7 +239,7 @@ function DecideDrawer({
   return (
     <Drawer open title={approve ? `Setujui ${request.code}` : `Tolak ${request.code}`} onClose={onClose}>
       <form
-        className="asset-form"
+        className="flex flex-col gap-4"
         onSubmit={async (event) => {
           event.preventDefault()
           if (approve && currentExpiry && newExpiry && newExpiry <= currentExpiry) {
@@ -249,8 +255,8 @@ function DecideDrawer({
           onClose()
         }}
       >
-        <p className="type-body text-muted-foreground">
-          {request.itemName} · diajukan oleh {request.requestedBy}
+        <p className="rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          <strong className="font-medium text-foreground">{request.itemName}</strong> · diajukan oleh {request.requestedBy}
           {request.note ? ` · "${request.note}"` : ""}
         </p>
         {approve && (
@@ -262,11 +268,11 @@ function DecideDrawer({
           <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
         </FormField>
         {error && (
-          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+          <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
-        <div className="asset-form__actions">
+        <div className="sticky bottom-0 -mx-5 -mb-5 mt-2 flex justify-end gap-2 border-t border-border bg-popover px-5 py-4">
           <Button variant="outline" type="button" onClick={onClose}>Batal</Button>
           <Button type="submit" variant={approve ? "default" : "destructive"} disabled={saving}>
             {saving ? "Menyimpan…" : approve ? "Setujui" : "Tolak"}
@@ -303,26 +309,45 @@ function RequestRow({
   showItem: boolean
 }) {
   return (
-    <div>
-      <div>
-        <strong className="type-body">{showItem ? request.itemName : request.code}</strong>
-        <span className="type-meta text-muted-foreground">
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className="truncate text-sm font-medium">{showItem ? request.itemName : request.code}</strong>
+          <StatusBadge status={request.status} tone={requestTone(request.status)} />
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
           {showItem ? `${request.code} · ` : ""}
           {request.requestedBy} · {request.createdAt}
           {request.decidedBy ? ` · diputuskan ${request.decidedBy}` : ""}
-        </span>
+        </p>
+        {request.note && <p className="mt-1.5 text-xs italic text-muted-foreground">“{request.note}”</p>}
       </div>
-      <StatusBadge status={request.status} tone={requestTone(request.status)} />
       {request.status === "Menunggu" && canApprove && (
-        <div className="request-list__actions">
-          <Button variant="destructive-outline" size="sm" onClick={() => onDecide(request, "REJECTED")}>
-            Tolak
+        <div className="flex shrink-0 gap-2">
+          <Button variant="destructive-outline" size="sm" className="flex-1 sm:flex-none" onClick={() => onDecide(request, "REJECTED")}>
+            <X size={14} /> Tolak
           </Button>
-          <Button variant="default" size="sm" onClick={() => onDecide(request, "APPROVED")}>
-            Setujui
+          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => onDecide(request, "APPROVED")}>
+            <Check size={14} /> Setujui
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Bar sisa masa berlaku, skala 365 hari. */
+function ExpiryBar({ days }: { days: number }) {
+  const pct = days <= 0 ? 100 : Math.max(4, Math.min(100, (days / 365) * 100))
+  const tone = days < 0 ? "bg-danger" : days <= 30 ? "bg-danger" : days <= 90 ? "bg-high" : days <= 180 ? "bg-warning" : "bg-success"
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <motion.div
+        className={cn("h-full rounded-full", tone)}
+        initial={{ width: 0 }}
+        animate={{ width: `${pct}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      />
     </div>
   )
 }
@@ -344,10 +369,7 @@ export default function LifecyclePage({
   const lifecycle = read("lifecycle")
   const requests = read("requests")
   const lifecycleType = typeMap[name]
-  const items = useMemo(
-    () => lifecycle.filter((item) => item.type === lifecycleType),
-    [lifecycle, lifecycleType],
-  )
+  const items = useMemo(() => lifecycle.filter((item) => item.type === lifecycleType), [lifecycle, lifecycleType])
   const [form, setForm] = useState<"create" | "edit" | null>(null)
   const [deciding, setDeciding] = useState<{ request: RenewalRequest; decision: "APPROVED" | "REJECTED" } | null>(null)
   const [toast, setToast] = useState("")
@@ -363,55 +385,55 @@ export default function LifecyclePage({
     }
   }
 
-  const openDecide = (request: RenewalRequest, decision: "APPROVED" | "REJECTED") =>
-    setDeciding({ request, decision })
+  const openDecide = (request: RenewalRequest, decision: "APPROVED" | "REJECTED") => setDeciding({ request, decision })
 
   const columns: DataTableColumn<LifecycleItem>[] = [
-    { key: "id", header: "ID", render: (item) => item.code },
+    { key: "id", header: "ID", render: (item) => <span className="font-mono text-xs text-muted-foreground">{item.code}</span> },
     {
       key: "name",
       header: "Nama",
-      render: (item) => <strong>{item.name}</strong>,
+      render: (item) => (
+        <span className="flex min-w-[160px] flex-col">
+          <strong className="font-medium">{item.name}</strong>
+          {item.vendor && <span className="text-xs text-muted-foreground">{item.vendor}</span>}
+        </span>
+      ),
     },
     { key: "location", header: "Lokasi", render: (item) => item.location },
     { key: "pic", header: "PIC", render: (item) => item.pic },
     {
       key: "quota",
       header: name === "Lisensi Software" ? "Kuota / Terpakai" : "Jumlah",
-      render: (item) =>
-        name === "Lisensi Software"
-          ? `${item.quantity} / ${item.allocated}`
-          : item.quantity,
-    },
-    { key: "expiry", header: "Berakhir", render: (item) => item.expiry },
-    {
-      key: "days",
-      header: "Sisa Hari",
-      render: (item) => {
-        const days = helpers.daysUntil(item.expiry)
-        return days < 0 ? `Lewat ${Math.abs(days)} hari` : `${days} hari`
-      },
-    },
-    {
-      key: "severity",
-      header: "Badge",
       render: (item) => (
-        <ExpiryStatus days={helpers.daysUntil(item.expiry)} />
+        <span className="tabular-nums">{name === "Lisensi Software" ? `${item.quantity} / ${item.allocated}` : item.quantity}</span>
       ),
     },
+    {
+      key: "expiry",
+      header: "Berakhir",
+      render: (item) => {
+        const days = helpers.daysUntil(item.expiry)
+        return (
+          <span className="flex w-[140px] flex-col gap-1.5">
+            <span className="flex items-baseline justify-between gap-2 whitespace-nowrap">
+              <span>{item.expiry}</span>
+              <span className={cn("text-xs", days < 0 ? "text-danger" : days <= 30 ? "text-danger" : "text-muted-foreground")}>
+                {days < 0 ? `lewat ${Math.abs(days)}h` : `${days}h`}
+              </span>
+            </span>
+            <ExpiryBar days={days} />
+          </span>
+        )
+      },
+    },
+    { key: "severity", header: "Badge", render: (item) => <ExpiryStatus days={helpers.daysUntil(item.expiry)} /> },
     {
       key: "status",
       header: "Status",
       render: (item) => (
         <StatusBadge
           status={item.status}
-          tone={
-            item.status === "Terminated"
-              ? "danger"
-              : item.status === "Renewed"
-                ? "success"
-                : "neutral"
-          }
+          tone={item.status === "Terminated" ? "danger" : item.status === "Renewed" ? "success" : "neutral"}
         />
       ),
     },
@@ -435,86 +457,71 @@ export default function LifecyclePage({
     />
   )
 
-  const toastEl = (
-    <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
-  )
+  const toastEl = <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
 
   if (selected) {
-    const relatedRequests = requests.filter(
-      (request) => request.itemId === selected.id,
-    )
+    const relatedRequests = requests.filter((request) => request.itemId === selected.id)
     const hasPending = relatedRequests.some((request) => request.status === "Menunggu")
+    const days = helpers.daysUntil(selected.expiry)
+    const meta: [string, string][] = [
+      ["Berakhir", selected.expiry],
+      ["Sisa hari", days < 0 ? `Lewat ${Math.abs(days)} hari` : `${days} hari`],
+      ["Kuota", `${selected.allocated} / ${selected.quantity}`],
+      ["Lokasi", selected.location],
+      ["PIC", selected.pic],
+      ["Vendor", selected.vendor || "—"],
+    ]
     return (
-      <div className="lifecycle-detail">
-        <div className="asset-detail__header">
-          <Button
-            onClick={() => setForm("edit")}
-            {...restrictedAction(canManage)}
-          >
-            <Pencil {...iconProps} />
-            Ubah siklus hidup
-          </Button>
-        </div>
-        <GlassCard className="lifecycle-detail__summary">
-          <span className="type-label text-muted-foreground">{selected.code}</span>
-          <h3 className="type-card-title">{selected.name}</h3>
-          <dl className="asset-summary__meta">
-            <div>
-              <dt>Berakhir</dt>
-              <dd>{selected.expiry}</dd>
-            </div>
-            <div>
-              <dt>Sisa hari</dt>
-              <dd>{helpers.daysUntil(selected.expiry)} hari</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{selected.status}</dd>
-            </div>
-            <div>
-              <dt>Kuota</dt>
-              <dd>
-                {selected.allocated} / {selected.quantity}
-              </dd>
-            </div>
-            {selected.vendor && (
-              <div>
-                <dt>Vendor</dt>
-                <dd>{selected.vendor}</dd>
+      <div className="flex min-w-0 flex-col gap-6">
+        <GlassCard className="min-w-0 overflow-hidden p-0">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-5 md:p-6">
+            <div className="min-w-0">
+              <span className="font-mono text-xs text-muted-foreground">{selected.code}</span>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">{selected.name}</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge
+                  status={selected.status}
+                  tone={selected.status === "Terminated" ? "danger" : selected.status === "Renewed" ? "success" : "neutral"}
+                />
+                <ExpiryStatus days={days} />
               </div>
-            )}
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button variant="outline" onClick={() => setForm("edit")} {...restrictedAction(canManage)}>
+                <Pencil {...iconProps} />
+                Ubah
+              </Button>
+              <Button onClick={() => void submitRequest(selected)} {...restrictedAction(canRequest && !hasPending)}>
+                <RefreshCw {...iconProps} />
+                {hasPending ? "Pengajuan sedang diproses" : "Ajukan Perpanjangan"}
+              </Button>
+            </div>
+          </div>
+          <div className="px-5 pb-5 md:px-6">
+            <ExpiryBar days={days} />
+          </div>
+          <dl className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-3 xl:grid-cols-6">
+            {meta.map(([label, value]) => (
+              <div key={label} className="min-w-0 bg-card p-4">
+                <dt className="type-label text-muted-foreground">{label}</dt>
+                <dd className="mt-1 truncate text-sm font-medium" title={value}>
+                  {value}
+                </dd>
+              </div>
+            ))}
           </dl>
-          <Button
-            variant="outline"
-            className="lifecycle-request-button"
-            onClick={() => void submitRequest(selected)}
-            {...restrictedAction(canRequest && !hasPending)}
-          >
-            {hasPending ? "Pengajuan sedang diproses" : "Ajukan Perpanjangan"}
-          </Button>
         </GlassCard>
 
-        <GlassCard className="lifecycle-requests">
-          <div className="section-heading">
-            <span className="type-label text-muted-foreground">PERSETUJUAN</span>
-            <h3 className="type-card-title">Pengajuan Perpanjangan</h3>
-          </div>
+        <GlassCard className="flex min-w-0 flex-col gap-4 p-5 md:p-6">
+          <CardHeading icon={ClipboardList} title="Pengajuan Perpanjangan" description={`${relatedRequests.length} pengajuan`} />
           {relatedRequests.length > 0 ? (
-            <div className="request-list">
+            <div className="flex flex-col gap-2">
               {relatedRequests.map((request) => (
-                <RequestRow
-                  key={request.id}
-                  request={request}
-                  canApprove={canManage}
-                  onDecide={openDecide}
-                  showItem={false}
-                />
+                <RequestRow key={request.id} request={request} canApprove={canManage} onDecide={openDecide} showItem={false} />
               ))}
             </div>
           ) : (
-            <p className="type-body text-muted-foreground">
-              Belum ada pengajuan untuk item ini.
-            </p>
+            <p className="type-meta">Belum ada pengajuan untuk item ini.</p>
           )}
         </GlassCard>
 
@@ -541,57 +548,78 @@ export default function LifecyclePage({
   }
 
   const pending = requests.filter(
-    (request) =>
-      request.status === "Menunggu" &&
-      items.some((item) => item.id === request.itemId),
+    (request) => request.status === "Menunggu" && items.some((item) => item.id === request.itemId),
+  )
+  const counts = items.reduce(
+    (acc, item) => {
+      const days = helpers.daysUntil(item.expiry)
+      if (days < 0) acc.expired += 1
+      else if (days <= 30) acc.d30 += 1
+      else if (days <= 90) acc.d90 += 1
+      else acc.safe += 1
+      return acc
+    },
+    { expired: 0, d30: 0, d90: 0, safe: 0 },
   )
 
   return (
-    <div className="lifecycle-page">
-      <GlassCard className="lifecycle-table">
-        <div className="section-heading flex items-start justify-between gap-4">
-          <div>
-            <span className="type-label text-muted-foreground">LIFECYCLE</span>
-            <h3 className="type-card-title">{lifecycleCardTitles[name]}</h3>
+    <div className="flex min-w-0 flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          ["Kedaluwarsa", counts.expired, "text-danger", "bg-danger"],
+          ["≤ 30 hari", counts.d30, "text-high", "bg-high"],
+          ["31–90 hari", counts.d90, "text-warning", "bg-warning"],
+          ["Aman (> 90 hari)", counts.safe, "text-success", "bg-success"],
+        ].map(([label, value, tone, dot]) => (
+          <GlassCard key={label as string} className="min-w-0 p-4">
+            <p className="flex items-center gap-2 type-label text-muted-foreground">
+              <span className={cn("size-1.5 rounded-full", dot as string)} aria-hidden="true" />
+              {label}
+            </p>
+            <p className={cn("mt-1 text-2xl font-semibold tabular-nums", (value as number) > 0 ? (tone as string) : "")}>{value}</p>
+          </GlassCard>
+        ))}
+      </div>
+
+      {pending.length > 0 && (
+        <GlassCard className="flex min-w-0 flex-col gap-4 border-warning/30 p-5 md:p-6">
+          <CardHeading
+            icon={ClipboardList}
+            title="Pengajuan Menunggu Persetujuan"
+            description={canManage ? "Setujui dengan tanggal berakhir baru atau tolak" : "Menunggu keputusan Supervisor/Administrator"}
+          />
+          <div className="flex flex-col gap-2">
+            {pending.map((request) => (
+              <RequestRow key={request.id} request={request} canApprove={canManage} onDecide={openDecide} showItem />
+            ))}
           </div>
-          <Button onClick={() => setForm("create")} {...restrictedAction(canManage)}>
-            <Plus {...iconProps} />
-            Tambah
-          </Button>
-        </div>
+        </GlassCard>
+      )}
+
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
+        <CardHeading
+          icon={CalendarClock}
+          title={lifecycleCardTitles[name]}
+          description={`${items.length} item, urut dari yang paling cepat berakhir`}
+          actions={
+            <Button onClick={() => setForm("create")} {...restrictedAction(canManage)}>
+              <Plus {...iconProps} />
+              Tambah
+            </Button>
+          }
+        />
         {items.length > 0 ? (
           <DataTable
             columns={columns}
             rows={items}
             rowKey={(item) => item.id}
+            rowSeverity={(item) => (helpers.daysUntil(item.expiry) < 0 ? "Expired" : undefined)}
             onRowClick={(item) => onSelectedIdChange(item.id)}
           />
         ) : (
-          <p className="type-body text-muted-foreground">
-            Belum ada data untuk kategori ini.
-          </p>
+          <EmptyState title="Belum ada data" description="Belum ada item untuk kategori ini." icon={CalendarClock} />
         )}
       </GlassCard>
-
-      {pending.length > 0 && (
-        <GlassCard className="lifecycle-requests">
-          <div className="section-heading">
-            <span className="type-label text-muted-foreground">PERSETUJUAN</span>
-            <h3 className="type-card-title">Pengajuan Menunggu Persetujuan</h3>
-          </div>
-          <div className="request-list">
-            {pending.map((request) => (
-              <RequestRow
-                key={request.id}
-                request={request}
-                canApprove={canManage}
-                onDecide={openDecide}
-                showItem
-              />
-            ))}
-          </div>
-        </GlassCard>
-      )}
 
       {form === "create" && (
         <LifecycleFormDrawer

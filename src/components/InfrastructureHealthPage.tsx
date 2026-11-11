@@ -1,4 +1,7 @@
-import { GlassCard, ScopeNotice, StatusBadge } from "./ui"
+import { HeartPulse } from "lucide-react"
+import { motion } from "motion/react"
+import { CardHeading, GlassCard, ScopeNotice, StatusBadge } from "./ui"
+import { cn } from "@/lib/utils"
 
 type HealthStatus = "Baik" | "Peringatan" | "Kritis"
 
@@ -20,64 +23,73 @@ const healthDimensions: HealthDimension[] = [
   { name: "Kepatuhan siklus hidup", weight: 10, score: 73, status: "Peringatan" },
 ]
 
-const statusTone = {
-  Baik: "success",
-  Peringatan: "warning",
-  Kritis: "danger",
-} as const
+const statusTone = { Baik: "success", Peringatan: "warning", Kritis: "danger" } as const
+const TOTAL = 80
 
 export default function InfrastructureHealthPage() {
+  const circumference = 2 * Math.PI * 52
   return (
-    <div className="health-page">
+    <div className="flex min-w-0 flex-col gap-6">
       <ScopeNotice>Health score tidak termasuk cakupan SYNRA. Angka di halaman ini adalah ilustrasi.</ScopeNotice>
-      <GlassCard className="health-score-summary">
-        <div>
-          <span className="type-label text-muted-foreground">SKOR TOTAL</span>
-          <strong className="health-score-summary__value">80</strong>
-        </div>
-        <div>
-          <span className="type-meta text-muted-foreground">Status infrastruktur</span>
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <GlassCard className="flex flex-col items-center gap-4 p-6 text-center">
+          <div className="relative size-40">
+            <svg viewBox="0 0 120 120" className="size-full -rotate-90">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--muted)" strokeWidth="10" />
+              <motion.circle
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke="var(--status-success)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                initial={{ strokeDashoffset: circumference }}
+                animate={{ strokeDashoffset: circumference * (1 - TOTAL / 100) }}
+                transition={{ duration: 1.2, ease: "easeOut" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-4xl font-semibold tracking-tight">{TOTAL}</span>
+              <span className="type-meta">dari 100</span>
+            </div>
+          </div>
           <StatusBadge status="Baik" tone="success" />
           <p className="type-body text-muted-foreground">
-            Kondisi infrastruktur stabil dengan perhatian pada kapasitas,
-            pencadangan, dan siklus hidup.
+            Kondisi infrastruktur stabil dengan perhatian pada kapasitas, pencadangan, dan siklus hidup.
           </p>
-        </div>
-      </GlassCard>
+        </GlassCard>
 
-      <GlassCard className="health-dimensions">
-        <div className="section-heading mb-4">
-          <span className="type-label text-muted-foreground">7 DIMENSI BERBOBOT</span>
-          <h3 className="type-card-title">Rincian Kesehatan Infrastruktur</h3>
-        </div>
-        <div className="table-wrap overflow-x-auto">
-          <table className="data-table w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="type-label text-muted-foreground text-left py-2 px-3">Dimensi</th>
-                <th className="type-label text-muted-foreground text-left py-2 px-3">Bobot</th>
-                <th className="type-label text-muted-foreground text-left py-2 px-3">Skor</th>
-                <th className="type-label text-muted-foreground text-left py-2 px-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {healthDimensions.map((dimension) => (
-                <tr key={dimension.name} className="border-b border-border/50">
-                  <td className="type-body font-medium py-2.5 px-3">{dimension.name}</td>
-                  <td className="type-body py-2.5 px-3">{dimension.weight}%</td>
-                  <td className="type-body py-2.5 px-3">{dimension.score}</td>
-                  <td className="type-body py-2.5 px-3">
-                    <StatusBadge
-                      status={dimension.status}
-                      tone={statusTone[dimension.status]}
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
+          <CardHeading icon={HeartPulse} title="Rincian Kesehatan Infrastruktur" description="7 dimensi berbobot" />
+          <ul className="flex flex-col gap-4">
+            {healthDimensions.map((dimension, index) => (
+              <li key={dimension.name} className="min-w-0">
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{dimension.name}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">bobot {dimension.weight}%</span>
+                    <StatusBadge status={dimension.status} tone={statusTone[dimension.status]} />
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <motion.div
+                      className={cn("h-full rounded-full", dimension.score >= 80 ? "bg-success" : dimension.score >= 60 ? "bg-warning" : "bg-danger")}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${dimension.score}%` }}
+                      transition={{ duration: 0.8, delay: index * 0.06 }}
                     />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
+                  </div>
+                  <span className="w-8 text-right text-sm font-semibold tabular-nums">{dimension.score}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      </div>
     </div>
   )
 }

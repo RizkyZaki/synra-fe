@@ -1,43 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Activity, ArrowRight, Boxes, CheckCircle2, History, MapPin, ShieldAlert, TrendingUp } from "lucide-react"
+import { motion } from "motion/react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useAccess } from "../lib/useAccess"
 import { useSynraStore, useUtilization } from "../lib/useSynraStore"
 import { formatDateTime } from "../lib/backend"
-import { ApiErrorBanner, GlassCard, KpiCard, SeverityBadge } from "./ui"
+import { ApiErrorBanner, CardHeading, GlassCard, KpiCard, SeverityBadge } from "./ui"
+import { Button } from "@/components/ui/button"
+import { NumberTicker } from "@/components/aceternity/number-ticker"
+import { cn } from "@/lib/utils"
 
 type Period = "24 jam" | "7 hari" | "30 hari"
 type Metric = "cpu" | "memory" | "disk"
 
-const metricConfig: Record<Metric, {
-  label: string
-  color: string
-  chartType: "line" | "bar"
-}> = {
-  cpu: {
-    label: "CPU",
-    color: "var(--primary-700)",
-    chartType: "line",
-  },
-  memory: {
-    label: "Memory",
-    color: "var(--chart-memory)",
-    chartType: "line",
-  },
-  disk: {
-    label: "Disk",
-    color: "var(--chart-disk)",
-    chartType: "bar",
-  },
+const metricConfig: Record<Metric, { label: string; color: string }> = {
+  cpu: { label: "CPU", color: "var(--primary)" },
+  memory: { label: "Memori", color: "var(--status-info)" },
+  disk: { label: "Disk", color: "var(--secondary-500)" },
 }
 
-const donutColors = [
-  "var(--primary-700)",
-  "var(--primary-400)",
-  "var(--success-500)",
-  "var(--warning-500)",
-  "var(--danger-500)",
-  "var(--secondary-400)",
-  "var(--primary-200)",
-]
+const donutColors = ["#ff7a1a", "#5cc8ff", "#5ee88a", "#ffd84d", "#ff6b6b", "#a78bfa", "#94a0b4"]
 
 const kpiDestinations: Record<string, string> = {
   online: "Inventaris Aset",
@@ -49,6 +30,22 @@ const kpiDestinations: Record<string, string> = {
 }
 
 type Tone = "good" | "warning" | "high" | "critical"
+
+const severityRank = { Normal: 0, Info: 1, Low: 2, Medium: 3, High: 4, Critical: 5, Expired: 6 } as const
+
+/** Mengukur lebar elemen agar grafik SVG mengikuti ukuran kartu. */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [width, setWidth] = useState(0)
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry.contentRect.width)))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  return [ref, width] as const
+}
 
 /**
  * Kartu KPI. Aset/alert/stale/availability dari backend (/dashboard/summary, /dashboard/availability).
@@ -75,7 +72,6 @@ function useKpiCards() {
       value: `${k.online}/${k.totalAssets}`,
       tag: `${pct}%`,
       tone: (pct >= 80 ? "good" : "warning") as Tone,
-      description: `${k.warning} warning · ${api.summary?.critical ?? 0} critical`,
       note: `${k.totalAssets - k.online} perlu perhatian`,
     },
     {
@@ -84,7 +80,6 @@ function useKpiCards() {
       value: `${activeLicenses.length}/${licenses.length}`,
       tag: "H-30",
       tone: (expiring.length > 0 ? "warning" : "good") as Tone,
-      description: `${expiring.length} habis ≤ 30 hari`,
       note:
         expiring.length === 0
           ? "Tidak ada yang mendekati"
@@ -98,11 +93,8 @@ function useKpiCards() {
       value: String(k.openAlerts),
       tag: "Aktif",
       tone: (k.critical > 0 ? "critical" : k.openAlerts > 0 ? "warning" : "good") as Tone,
-      description: "Belum ditutup",
       // Ringkas agar muat di kartu; rincian per severity ada di halaman Alert.
-      note: sev
-        ? `${sev.CRITICAL + sev.HIGH} tinggi · ${sev.MEDIUM + sev.LOW + sev.INFO} lainnya`
-        : "—",
+      note: sev ? `${sev.CRITICAL + sev.HIGH} tinggi · ${sev.MEDIUM + sev.LOW + sev.INFO} lainnya` : "—",
     },
     {
       id: "critical",
@@ -110,8 +102,7 @@ function useKpiCards() {
       value: String(k.critical),
       tag: "P1",
       tone: (k.critical > 0 ? "critical" : "good") as Tone,
-      description: "Perlu tindakan segera",
-      note: "Belum ditutup",
+      note: "Perlu tindakan segera",
     },
     {
       id: "stale",
@@ -119,7 +110,6 @@ function useKpiCards() {
       value: String(k.stale),
       tag: "5 mnt",
       tone: (k.stale > 0 ? "critical" : "good") as Tone,
-      description: "Tidak mengirim data",
       note: api.summary?.lastIngestAt
         ? `Ingest ${formatDateTime(api.summary.lastIngestAt).split(", ")[1] ?? ""}`
         : "Belum ada ingest",
@@ -134,401 +124,276 @@ function useKpiCards() {
         : k.availabilityPct >= 95
           ? "warning"
           : "critical") as Tone,
-      description: "Semua aset aktif",
       note: "Data per menit",
     },
   ]
 }
 
+/** Tombol pilihan bersegmen dengan indikator beranimasi. */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  id,
+  label,
+}: {
+  options: T[]
+  value: T
+  onChange: (value: T) => void
+  id: string
+  label: string
+}) {
+  return (
+    <div role="group" aria-label={label} className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={value === option}
+          onClick={() => onChange(option)}
+          className={cn(
+            "relative h-7 rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            value === option ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {value === option && (
+            <motion.span
+              layoutId={`seg-${id}`}
+              className="absolute inset-0 rounded-md border border-border bg-card shadow-sm"
+              transition={{ type: "spring", stiffness: 500, damping: 38 }}
+            />
+          )}
+          <span className="relative">{option}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function UtilizationChart() {
   const [period, setPeriod] = useState<Period>("24 jam")
   const [hovered, setHovered] = useState<number | null>(null)
-  const [visible, setVisible] = useState<Record<Metric, boolean>>({
-    cpu: true,
-    memory: true,
-    disk: true,
-  })
+  const [visible, setVisible] = useState<Record<Metric, boolean>>({ cpu: true, memory: true, disk: true })
   const { data, error } = useUtilization(period)
+  const [boxRef, boxWidth] = useWidth<HTMLDivElement>()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const height = 260
-  const top = 18
-  const chartHeight = 188
-  const yAxisWidth = 46
-
-  // Batasi agar 1 view layar menampilkan sekitar 6 jam (step ~105px).
-  // Dengan 24 jam (25 titik), grafik melebar dan bisa di-scroll horizontal tanpa berdempetan.
-  const isScrollable = data.length > 6
-  const baseStep = period === "24 jam" ? 105 : 95
+  const top = 16
+  const chartHeight = 196
+  const yAxisWidth = 40
+  const padX = 20
+  // Minimal 44px per titik; kalau kartu cukup lebar grafik mengisi penuh, kalau tidak bisa digeser.
+  const available = Math.max(boxWidth - yAxisWidth, 240)
   const pointsCount = Math.max(data.length - 1, 1)
-  const padX = 28
-  const plotSvgWidth = isScrollable
-    ? padX * 2 + pointsCount * baseStep
-    : 640
-  const step = isScrollable
-    ? baseStep
-    : (plotSvgWidth - padX * 2) / pointsCount
+  const plotWidth = Math.max(available, padX * 2 + pointsCount * 44)
+  const step = (plotWidth - padX * 2) / pointsCount
+  const scrollable = plotWidth > available + 1
+  const labelEvery = Math.max(1, Math.ceil(56 / step))
 
-  const x = (index: number) =>
-    data.length === 1 ? plotSvgWidth / 2 : padX + step * index
+  const x = (index: number) => (data.length === 1 ? plotWidth / 2 : padX + step * index)
   const y = (value: number) => top + ((100 - value) / 100) * chartHeight
+  const barWidth = Math.max(4, Math.min(18, step * 0.42))
+  const linePath = (metric: "cpu" | "memory") =>
+    data.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${y(point[metric])}`).join(" ")
+  const areaPath = (metric: "cpu" | "memory") =>
+    data.length
+      ? `${linePath(metric)} L${x(data.length - 1)},${top + chartHeight} L${x(0)},${top + chartHeight} Z`
+      : ""
 
-  const barWidth = isScrollable ? 22 : Math.min(24, step * 0.48)
-
-  const linePoints = (metric: "cpu" | "memory") =>
-    data.map((point, index) => `${x(index)},${y(point[metric])}`).join(" ")
-
-  // Auto scroll ke ujung kanan (waktu terbaru) saat data 24 jam dimuat atau periode berubah
+  // Gulir ke data terbaru saat grafik bisa digeser.
   useEffect(() => {
-    if (scrollRef.current && isScrollable) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-    }
-  }, [period, data.length, isScrollable])
+    if (scrollRef.current && scrollable) scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+  }, [period, data.length, scrollable])
+
+  const hoveredPoint = hovered !== null ? data[hovered] : undefined
 
   return (
-    <GlassCard className="dashboard-card utilization-card">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">MONITORING</span>
-          <h3 className="type-card-title">Utilisasi CPU / Memori / Disk</h3>
-        </div>
-        <div className="period-filter" aria-label="Periode grafik">
-          {(["24 jam", "7 hari", "30 hari"] as Period[]).map((option) => (
-            <button
-              key={option}
-              className={period === option ? "period-filter__active" : ""}
-              onClick={() => {
-                setPeriod(option)
-                setHovered(null)
-              }}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      </div>
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-8">
+      <CardHeading
+        icon={TrendingUp}
+        title="Utilisasi CPU / Memori / Disk"
+        description="Rata-rata seluruh host yang aktif"
+        actions={
+          <Segmented
+            id="period"
+            label="Periode grafik"
+            options={["24 jam", "7 hari", "30 hari"] as Period[]}
+            value={period}
+            onChange={(next) => {
+              setPeriod(next)
+              setHovered(null)
+            }}
+          />
+        }
+      />
 
-      <div className="chart-legend">
+      <div className="flex flex-wrap gap-2">
         {(Object.keys(metricConfig) as Metric[]).map((metric) => (
           <button
             key={metric}
-            className={visible[metric] ? "chart-legend__active" : ""}
-            onClick={() =>
-              setVisible((current) => ({
-                ...current,
-                [metric]: !current[metric],
-              }))
-            }
+            type="button"
+            aria-pressed={visible[metric]}
+            onClick={() => setVisible((current) => ({ ...current, [metric]: !current[metric] }))}
+            className={cn(
+              "inline-flex h-7 items-center gap-2 rounded-full border px-3 text-xs font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring",
+              visible[metric] ? "border-border bg-muted text-foreground" : "border-dashed border-border text-muted-foreground opacity-60",
+            )}
           >
             <span
-              className={`chart-legend__line chart-legend__line--${metric}`}
+              className={cn("h-2 w-3.5", metric === "disk" ? "rounded-sm" : "rounded-full")}
+              style={{ background: metricConfig[metric].color }}
+              aria-hidden="true"
             />
-            <span>{metricConfig[metric].label}</span>
+            {metricConfig[metric].label}
           </button>
         ))}
       </div>
 
-      {error && <p className="type-meta text-muted-foreground">{error}</p>}
-      {!error && data.length === 0 && (
-        <p className="type-meta text-muted-foreground">Belum ada data metrik pada periode ini.</p>
-      )}
-      <div className="chart-shell">
-        <div className="chart-wrapper">
-          {/* Sumbu Y Tetap di Kiri */}
-          <div className="chart-y-axis" aria-hidden="true">
-            <svg
-              width={yAxisWidth}
-              height={height}
-              viewBox={`0 0 ${yAxisWidth} ${height}`}
-            >
-              {[0, 25, 50, 75, 100].map((tick) => {
-                const tickY = y(tick)
-                return (
-                  <text
-                    key={tick}
-                    x={yAxisWidth - 8}
-                    y={tickY + 4}
-                    className="chart-axis-label"
-                  >
-                    {tick}%
-                  </text>
-                )
-              })}
-            </svg>
-          </div>
+      {error && <p className="type-meta">{error}</p>}
+      {!error && data.length === 0 && <p className="type-meta">Belum ada data metrik pada periode ini.</p>}
 
-          {/* Area Grafik yang Bisa Di-scroll Horizontal */}
-          <div className="chart-scroll" ref={scrollRef}>
-            <svg
-              width={plotSvgWidth}
-              height={height}
-              viewBox={`0 0 ${plotSvgWidth} ${height}`}
-              role="img"
-              aria-label={`Grafik utilisasi periode ${period}`}
-            >
-              {/* Garis Grid Horizontal */}
-              {[0, 25, 50, 75, 100].map((tick) => {
-                const tickY = y(tick)
-                return (
-                  <line
-                    key={tick}
-                    x1={0}
-                    x2={plotSvgWidth}
-                    y1={tickY}
-                    y2={tickY}
-                    className="chart-gridline"
-                  />
-                )
-              })}
+      <div ref={boxRef} className="relative flex w-full min-w-0">
+        <svg width={yAxisWidth} height={height} className="shrink-0" aria-hidden="true">
+          {[0, 25, 50, 75, 100].map((tick) => (
+            <text key={tick} x={yAxisWidth - 8} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-[11px]">
+              {tick}%
+            </text>
+          ))}
+        </svg>
+        <div ref={scrollRef} className={cn("min-w-0 flex-1", scrollable ? "overflow-x-auto" : "overflow-hidden")}>
+          <svg
+            width={plotWidth}
+            height={height}
+            role="img"
+            aria-label={`Grafik utilisasi periode ${period}`}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <defs>
+              {(["cpu", "memory"] as const).map((metric) => (
+                <linearGradient key={metric} id={`fill-${metric}`} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={metricConfig[metric].color} stopOpacity="0.28" />
+                  <stop offset="100%" stopColor={metricConfig[metric].color} stopOpacity="0" />
+                </linearGradient>
+              ))}
+            </defs>
+            {[0, 25, 50, 75, 100].map((tick) => (
+              <line
+                key={tick}
+                x1={0}
+                x2={plotWidth}
+                y1={y(tick)}
+                y2={y(tick)}
+                stroke="var(--border)"
+                strokeDasharray={tick === 0 ? undefined : "3 5"}
+              />
+            ))}
 
-              {/* Batang Disk */}
-              {visible.disk &&
-                data.map((point, index) => (
-                  <rect
-                    key={`disk-${index}`}
-                    x={x(index) - barWidth / 2}
-                    y={y(point.disk)}
-                    width={barWidth}
-                    height={top + chartHeight - y(point.disk)}
-                    rx="4"
-                    fill={metricConfig.disk.color}
-                    className="chart-bar"
-                  />
-                ))}
-
-              {/* Garis CPU */}
-              {visible.cpu && (
-                <polyline
-                  points={linePoints("cpu")}
-                  fill="none"
-                  stroke={metricConfig.cpu.color}
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            {visible.disk &&
+              data.map((point, index) => (
+                <rect
+                  key={`disk-${index}`}
+                  x={x(index) - barWidth / 2}
+                  y={y(point.disk)}
+                  width={barWidth}
+                  height={top + chartHeight - y(point.disk)}
+                  rx={Math.min(4, barWidth / 2)}
+                  fill={metricConfig.disk.color}
+                  opacity={hovered === null || hovered === index ? 0.45 : 0.2}
                 />
-              )}
-
-              {/* Garis Memory */}
-              {visible.memory && (
-                <polyline
-                  points={linePoints("memory")}
-                  fill="none"
-                  stroke={metricConfig.memory.color}
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray="6 4"
-                />
-              )}
-
-              {/* Titik & Label Jam Sumbu X */}
-              {data.map((point, index) => (
-                <g key={`point-${index}`}>
-                  <text
-                    x={x(index)}
-                    y={height - 16}
-                    className="chart-axis-label chart-axis-label--x"
-                  >
-                    {point.label}
-                  </text>
-                  <rect
-                    x={x(index) - step / 2}
-                    y={top}
-                    width={step}
-                    height={chartHeight + 30}
-                    fill="transparent"
-                    onMouseEnter={() => setHovered(index)}
-                    onMouseLeave={() => setHovered(null)}
-                  />
-                </g>
               ))}
 
-              {/* Tooltip Saat Hover */}
-              {hovered !== null && data[hovered] && (
-                <g
-                  transform={`translate(${Math.min(
-                    Math.max(x(hovered) - 65, 8),
-                    plotSvgWidth - 138,
-                  )}, 24)`}
-                  className="chart-tooltip"
-                >
-                  <rect width="130" height="78" rx="10" />
-                  <text x="12" y="18" className="chart-tooltip__title">
-                    {data[hovered].label}
-                  </text>
-                  <text x="12" y="36">
-                    CPU {data[hovered].cpu}%
-                  </text>
-                  <text x="12" y="53">
-                    Memory {data[hovered].memory}%
-                  </text>
-                  <text x="12" y="70">
-                    Disk {data[hovered].disk}%
-                  </text>
-                </g>
-              )}
-            </svg>
-          </div>
-        </div>
-      </div>
-    </GlassCard>
-  )
-}
+            {(["memory", "cpu"] as const).map(
+              (metric) =>
+                visible[metric] &&
+                data.length > 0 && (
+                  <g key={metric}>
+                    <path d={areaPath(metric)} fill={`url(#fill-${metric})`} />
+                    <motion.path
+                      d={linePath(metric)}
+                      fill="none"
+                      stroke={metricConfig[metric].color}
+                      strokeWidth={2.25}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      key={`${metric}-${period}-${data.length}`}
+                    />
+                  </g>
+                ),
+            )}
 
-function AssetDistribution() {
-  const { helpers } = useSynraStore()
-  const distribution = helpers.assetsByType()
-  let offset = 0
-
-  return (
-    <GlassCard className="dashboard-card asset-distribution">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">ASET</span>
-          <h3 className="type-card-title">Distribusi Aset per Jenis</h3>
-        </div>
-      </div>
-      <div className="donut-layout">
-        <div className="donut-chart">
-          <svg viewBox="0 0 120 120" aria-label="Distribusi aset">
-            <circle
-              cx="60"
-              cy="60"
-              r="44"
-              fill="none"
-              stroke="var(--border)"
-              strokeWidth="18"
-            />
-            {distribution.map((item, index) => {
-              const currentOffset = offset
-              offset += item.pct
-              return (
-                <circle
-                  key={item.type}
-                  cx="60"
-                  cy="60"
-                  r="44"
-                  pathLength="100"
-                  fill="none"
-                  stroke={donutColors[index % donutColors.length]}
-                  strokeWidth="18"
-                  strokeDasharray={`${item.pct} ${100 - item.pct}`}
-                  strokeDashoffset={-currentOffset}
-                  transform="rotate(-90 60 60)"
-                />
-              )
-            })}
-          </svg>
-          <div>
-            <strong className="bigcopy">
-              {distribution.reduce((sum, item) => sum + item.count, 0)}
-            </strong>
-            <span className="type-meta text-muted-foreground">Aset</span>
-          </div>
-        </div>
-        <div className="donut-legend">
-          {distribution.map((item, index) => (
-            <div key={item.type}>
-              <span
-                className="type-body"
-                style={{ color: donutColors[index % donutColors.length] }}
-              >
-                {item.type}
-              </span>
-              <span className="type-meta text-muted-foreground">
-                {item.count} · {item.pct}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </GlassCard>
-  )
-}
-
-function AvailabilityBreakdown() {
-  const { api } = useSynraStore()
-  const rows = [...(api.availability?.assets ?? [])].sort(
-    (a, b) => (a.pct ?? 101) - (b.pct ?? 101),
-  )
-  const tone = (pct: number | null) =>
-    pct === null ? "risk" : pct >= 99.5 ? "healthy" : pct >= 99 ? "good" : pct >= 95 ? "warning" : "risk"
-  return (
-    <GlassCard className="dashboard-card health-breakdown">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">AVAILABILITY</span>
-          <h3 className="type-card-title">Availability per Aset (24 Jam)</h3>
-        </div>
-      </div>
-      <div className="health-list">
-        {rows.length === 0 && <p className="type-meta text-muted-foreground">Belum ada data.</p>}
-        {rows.map((row) => (
-          <div className="health-row" key={row.assetId}>
-            <div className="health-row__label">
-              <span className="type-body">{row.hostname}</span>
-              <span className="type-meta text-muted-foreground">
-                {row.host} ·{" "}
-                {row.pct === null ? "belum ada data" : `${row.pct.toLocaleString("id-ID")}%`}
-              </span>
-            </div>
-            <div className="health-track">
-              <span
-                className={`health-fill health-fill--${tone(row.pct)}`}
-                style={{ width: `${row.pct ?? 0}%` }}
+            {hovered !== null && (
+              <line
+                x1={x(hovered)}
+                x2={x(hovered)}
+                y1={top}
+                y2={top + chartHeight}
+                stroke="var(--muted-foreground)"
+                strokeOpacity="0.4"
+                strokeDasharray="3 3"
               />
-            </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  )
-}
+            )}
+            {hoveredPoint &&
+              (["cpu", "memory"] as const).map(
+                (metric) =>
+                  visible[metric] && (
+                    <circle
+                      key={metric}
+                      cx={x(hovered!)}
+                      cy={y(hoveredPoint[metric])}
+                      r={4}
+                      fill="var(--card)"
+                      stroke={metricConfig[metric].color}
+                      strokeWidth={2}
+                    />
+                  ),
+              )}
 
-function LocationStatus() {
-  const { read } = useSynraStore()
-  const assets = read("assets")
-  const hosts = [...new Set(assets.map((asset) => asset.location))].sort()
-
-  return (
-    <GlassCard className="dashboard-card location-status">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">HOST</span>
-          <h3 className="type-card-title">Status per Host</h3>
+            {data.map((point, index) => (
+              <g key={`point-${index}`}>
+                {index % labelEvery === 0 && (
+                  <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+                    {point.label}
+                  </text>
+                )}
+                <rect
+                  x={x(index) - step / 2}
+                  y={top}
+                  width={step}
+                  height={chartHeight + 30}
+                  fill="transparent"
+                  onMouseEnter={() => setHovered(index)}
+                />
+              </g>
+            ))}
+          </svg>
         </div>
-      </div>
-      <div className="location-status__grid">
-        {hosts.map((host) => {
-          const hostAssets = assets.filter((asset) => asset.location === host)
-          const count = (status: string) =>
-            hostAssets.filter((asset) => asset.backendStatus === status).length
-          return (
-            <div className="location-mini" key={host}>
-              <div className="location-mini__title">
-                <strong className="type-body">{host}</strong>
-              </div>
-              <dl>
-                <div>
-                  <dt>Daring</dt>
-                  <dd>
-                    {count("ONLINE")}/{hostAssets.length}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Warning / critical</dt>
-                  <dd>
-                    {count("WARNING")} / {count("CRITICAL")}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Stale</dt>
-                  <dd>{count("STALE")}</dd>
-                </div>
-              </dl>
-            </div>
-          )
-        })}
+
+        {hoveredPoint && (
+          <div
+            className="pointer-events-none absolute top-2 z-10 w-36 rounded-lg border border-border bg-popover/95 p-2.5 text-xs shadow-xl backdrop-blur"
+            style={{
+              left: Math.min(
+                Math.max(yAxisWidth + x(hovered!) - (scrollRef.current?.scrollLeft ?? 0) - 72, 0),
+                Math.max(boxWidth - 144, 0),
+              ),
+            }}
+          >
+            <p className="mb-1.5 font-medium">{hoveredPoint.label}</p>
+            {(Object.keys(metricConfig) as Metric[]).map((metric) => (
+              <p key={metric} className="flex items-center justify-between gap-2 text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: metricConfig[metric].color }} />
+                  {metricConfig[metric].label}
+                </span>
+                <span className="font-medium text-foreground">{hoveredPoint[metric]}%</span>
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     </GlassCard>
   )
@@ -539,104 +404,239 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
   const priorityAlerts = read("alerts")
     .filter((alert) => alert.status !== "Ditutup" && alert.conditionActive !== false)
     .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
-  const listRef = useRef<HTMLDivElement>(null)
-  const scrollTimerRef = useRef<number | null>(null)
-  const [atBottom, setAtBottom] = useState(true)
-  const [scrolling, setScrolling] = useState(false)
-
-  const updateScrollState = () => {
-    const list = listRef.current
-    if (!list) return
-    setAtBottom(
-      list.scrollHeight - list.scrollTop <= list.clientHeight + 1,
-    )
-  }
-
-  useEffect(() => {
-    const list = listRef.current
-    if (!list) return
-    const frame = window.requestAnimationFrame(updateScrollState)
-    const observer = new ResizeObserver(updateScrollState)
-    observer.observe(list)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      observer.disconnect()
-      if (scrollTimerRef.current !== null) {
-        window.clearTimeout(scrollTimerRef.current)
-      }
-    }
-  }, [priorityAlerts.length])
-
-  const handleScroll = () => {
-    updateScrollState()
-    setScrolling(true)
-    if (scrollTimerRef.current !== null) {
-      window.clearTimeout(scrollTimerRef.current)
-    }
-    scrollTimerRef.current = window.setTimeout(() => setScrolling(false), 700)
-  }
 
   return (
-    <GlassCard className="dashboard-card insight-panel">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">PRIORITAS</span>
-          <h3 className="type-card-title">Prioritas Hari Ini</h3>
-        </div>
-      </div>
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-4">
+      <CardHeading
+        icon={ShieldAlert}
+        title="Prioritas Hari Ini"
+        description={`${priorityAlerts.length} alert aktif`}
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => onNavigate("Alert & Insiden")}>
+            Semua <ArrowRight />
+          </Button>
+        }
+      />
       {priorityAlerts.length > 0 ? (
-        <div
-          className={`priority-scroll ${
-            atBottom ? "priority-scroll--at-bottom" : ""
-          }`}
-        >
-          <div
-            ref={listRef}
-            className={`insight-list ${
-              scrolling ? "insight-list--scrolling" : ""
-            }`}
-            onScroll={handleScroll}
-          >
-            {priorityAlerts.map((alert) => (
-              <article className="insight-item" key={alert.id}>
-                <div className="insight-item__top">
+        <div className="relative -mx-1 min-h-0 flex-1">
+          <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto px-1 pb-6">
+            {priorityAlerts.map((alert, index) => (
+              <motion.button
+                key={alert.id}
+                type="button"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(index, 8) * 0.04 }}
+                onClick={() => onNavigate("Alert & Insiden")}
+                className={cn(
+                  "group flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3 text-left outline-none transition-colors hover:border-primary/30 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                  alert.severity === "Critical" && "border-danger/30 bg-danger/[0.05]",
+                )}
+              >
+                <span className="flex items-center justify-between gap-2">
                   <SeverityBadge severity={alert.severity} />
-                </div>
-                <div>
-                  <h4 className="strong">{alert.name}</h4>
-                  <p className="type-body">{alert.note}</p>
-                </div>
-                <button
-                  className="insight-link"
-                  onClick={() => onNavigate("Alert & Insiden")}
-                >
-                  Lihat Detail
-                </button>
-              </article>
+                  <ArrowRight
+                    size={14}
+                    className="text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="text-sm font-medium leading-snug">{alert.name}</span>
+                {alert.note && <span className="line-clamp-2 text-xs text-muted-foreground">{alert.note}</span>}
+              </motion.button>
             ))}
           </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent" />
         </div>
       ) : (
-        <div className="priority-empty">
-          <strong className="type-body">
-            Tidak ada alert aktif
-          </strong>
-          <span className="type-meta text-muted-foreground">Semua aman untuk saat ini</span>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
+          <CheckCircle2 size={28} className="text-success" aria-hidden="true" />
+          <strong className="text-sm font-medium">Tidak ada alert aktif</strong>
+          <span className="type-meta">Semua aman untuk saat ini</span>
         </div>
       )}
     </GlassCard>
   )
 }
 
-const severityRank = {
-  Normal: 0,
-  Info: 1,
-  Low: 2,
-  Medium: 3,
-  High: 4,
-  Critical: 5,
-  Expired: 6,
-} as const
+function AssetDistribution() {
+  const { helpers } = useSynraStore()
+  const distribution = helpers.assetsByType()
+  const total = distribution.reduce((sum, item) => sum + item.count, 0)
+  let offset = 0
+
+  return (
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-5 p-5 md:col-span-6 xl:col-span-4">
+      <CardHeading icon={Boxes} title="Distribusi Aset" description="Per jenis perangkat" />
+      <div className="flex flex-col items-center gap-6 sm:flex-row xl:flex-col 2xl:flex-row">
+        <div className="relative size-40 shrink-0">
+          <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-label="Distribusi aset">
+            <circle cx="60" cy="60" r="46" fill="none" stroke="var(--muted)" strokeWidth="12" />
+            {distribution.map((item, index) => {
+              const currentOffset = offset
+              offset += item.pct
+              return (
+                <motion.circle
+                  key={item.type}
+                  cx="60"
+                  cy="60"
+                  r="46"
+                  pathLength="100"
+                  fill="none"
+                  stroke={donutColors[index % donutColors.length]}
+                  strokeWidth="12"
+                  strokeDasharray={`${Math.max(item.pct - 1, 0)} ${100 - Math.max(item.pct - 1, 0)}`}
+                  strokeDashoffset={-currentOffset}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: index * 0.08 }}
+                />
+              )
+            })}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <NumberTicker value={String(total)} className="text-3xl font-semibold tracking-tight" />
+            <span className="type-meta">aset</span>
+          </div>
+        </div>
+        <ul className="grid w-full min-w-0 gap-2">
+          {distribution.map((item, index) => (
+            <li key={item.type} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className="size-2.5 shrink-0 rounded-sm"
+                  style={{ background: donutColors[index % donutColors.length] }}
+                  aria-hidden="true"
+                />
+                <span className="truncate">{item.type}</span>
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {item.count} · {item.pct}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </GlassCard>
+  )
+}
+
+function AvailabilityBreakdown() {
+  const { api } = useSynraStore()
+  const rows = [...(api.availability?.assets ?? [])].sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101))
+  const barColor = (pct: number | null) =>
+    pct === null ? "bg-muted-foreground/40" : pct >= 99 ? "bg-success" : pct >= 95 ? "bg-warning" : "bg-danger"
+
+  return (
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 md:col-span-6 xl:col-span-4">
+      <CardHeading icon={Activity} title="Availability per Aset" description="24 jam terakhir, terendah di atas" />
+      <div className="flex max-h-[300px] flex-col gap-3.5 overflow-y-auto pr-1">
+        {rows.length === 0 && <p className="type-meta">Belum ada data.</p>}
+        {rows.map((row, index) => (
+          <div key={row.assetId} className="min-w-0">
+            <div className="mb-1.5 flex items-baseline justify-between gap-3">
+              <span className="truncate text-sm">{row.hostname}</span>
+              <span className="shrink-0 text-xs font-medium tabular-nums">
+                {row.pct === null ? "—" : `${row.pct.toLocaleString("id-ID")}%`}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <motion.div
+                className={cn("h-full rounded-full", barColor(row.pct))}
+                initial={{ width: 0 }}
+                animate={{ width: `${row.pct ?? 0}%` }}
+                transition={{ duration: 0.8, delay: Math.min(index, 10) * 0.04, ease: "easeOut" }}
+              />
+            </div>
+            <span className="mt-1 block truncate text-[11px] text-muted-foreground">{row.host}</span>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
+  )
+}
+
+function RecentActivity() {
+  const { read } = useSynraStore()
+  const entries = [...read("audit")]
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    .slice(0, 6)
+  const fmt = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+
+  return (
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-4">
+      <CardHeading icon={History} title="Aktivitas Terbaru" description="Dari audit trail" />
+      {entries.length === 0 ? (
+        <p className="type-meta">Belum ada aktivitas.</p>
+      ) : (
+        <ol className="relative flex flex-col gap-4 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-border">
+          {entries.map((entry) => (
+            <li key={entry.id} className="relative min-w-0 pl-6">
+              <span className="absolute left-0 top-1.5 size-[11px] rounded-full border-2 border-card bg-primary/80 ring-1 ring-primary/30" />
+              <p className="text-[13.5px] leading-snug">
+                <strong className="font-medium">{entry.user}</strong>{" "}
+                <span className="text-muted-foreground">·</span> {entry.action}
+              </p>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {entry.detail !== "—" && `${entry.detail} · `}
+                {fmt.format(new Date(entry.time))}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </GlassCard>
+  )
+}
+
+function LocationStatus() {
+  const { read } = useSynraStore()
+  const assets = read("assets")
+  const hosts = [...new Set(assets.map((asset) => asset.location))].sort()
+
+  return (
+    <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5">
+      <CardHeading icon={MapPin} title="Status per Host" description={`${hosts.length} host terpantau`} />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
+        {hosts.map((host) => {
+          const hostAssets = assets.filter((asset) => asset.location === host)
+          const count = (status: string) => hostAssets.filter((asset) => asset.backendStatus === status).length
+          const online = count("ONLINE")
+          const critical = count("CRITICAL")
+          const warning = count("WARNING")
+          const stale = count("STALE")
+          const state = critical || stale ? "danger" : warning ? "warning" : "success"
+          return (
+            <div key={host} className="min-w-0 rounded-xl border border-border bg-muted/30 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    state === "danger" ? "bg-danger animate-pulse-ring" : state === "warning" ? "bg-warning" : "bg-success",
+                  )}
+                  aria-hidden="true"
+                />
+                <strong className="truncate text-sm font-medium">{host}</strong>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  ["Daring", `${online}/${hostAssets.length}`, "text-foreground"],
+                  ["Warn/Krit", `${warning}/${critical}`, critical ? "text-danger" : warning ? "text-warning" : "text-foreground"],
+                  ["Stale", String(stale), stale ? "text-danger" : "text-foreground"],
+                ].map(([label, value, tone]) => (
+                  <div key={label} className="rounded-lg bg-card/70 px-1 py-2">
+                    <dd className={cn("text-base font-semibold tabular-nums", tone)}>{value}</dd>
+                    <dt className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{label}</dt>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )
+        })}
+      </div>
+    </GlassCard>
+  )
+}
 
 function ExecutiveSummary() {
   const { read, helpers } = useSynraStore()
@@ -649,56 +649,31 @@ function ExecutiveSummary() {
   const online = assets.filter((asset) => asset.status === "Online").length
 
   return (
-    <GlassCard className="executive-dashboard">
-      <div className="section-heading">
-        <span className="type-label text-muted-foreground">MANAJEMEN</span>
-        <h3 className="type-card-title">Ringkasan Eksekutif</h3>
-      </div>
-      <div className="executive-dashboard__grid">
-        <div>
-          <span className="type-meta text-muted-foreground">3 alert teratas</span>
-          {alerts.map((alert) => (
-            <span className="type-body" key={alert.id}>
-              {alert.name} · {alert.severity}
-            </span>
-          ))}
+    <GlassCard className="col-span-12 overflow-hidden p-0">
+      <div className="grid gap-px bg-border md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="bg-card p-5">
+          <p className="type-label mb-3 text-primary">Ringkasan eksekutif · 3 alert teratas</p>
+          {alerts.length === 0 ? (
+            <p className="type-meta">Tidak ada alert terbuka.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {alerts.map((alert) => (
+                <li key={alert.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate">{alert.name}</span>
+                  <SeverityBadge severity={alert.severity} />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div>
-          <span className="type-meta text-muted-foreground">Aset daring</span>
-          <strong className="type-body">
-            {online}/{assets.length}
-          </strong>
-        </div>
-        <div>
-          <span className="type-meta text-muted-foreground">Host stale</span>
-          <strong className="bigcopy">{k.stale}</strong>
-        </div>
-        <div>
-          <span className="type-meta text-muted-foreground">Availability 24 jam</span>
-          <strong className="bigcopy">
-            {k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`}
-          </strong>
-        </div>
-      </div>
-    </GlassCard>
-  )
-}
-
-function AlertFunnel() {
-  const { helpers } = useSynraStore()
-  const funnel = helpers.alertFunnel()
-  return (
-    <GlassCard className="dashboard-card alert-funnel">
-      <div className="dashboard-card__header">
-        <div>
-          <h3 className="type-card-title">Tahap Alert</h3>
-        </div>
-      </div>
-      <div className="funnel-list">
-        {funnel.map((stage, index) => (
-          <div className="funnel-stage" key={stage.status}>
-            <span className="funnel-stage__count">{stage.count}</span>
-            <span className="type-meta">{stage.status}</span>
+        {[
+          ["Aset daring", `${online}/${assets.length}`],
+          ["Host stale", String(k.stale)],
+          ["Availability 24 jam", k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`],
+        ].map(([label, value]) => (
+          <div key={label} className="flex flex-col justify-center bg-card p-5">
+            <span className="type-meta">{label}</span>
+            <NumberTicker value={value} className="mt-1 text-2xl font-semibold tracking-tight" />
           </div>
         ))}
       </div>
@@ -706,72 +681,37 @@ function AlertFunnel() {
   )
 }
 
-function RecentActivity() {
-  const { read } = useSynraStore()
-  const entries = [...read("audit")]
-    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-    .slice(0, 5)
-
-  return (
-    <GlassCard className="dashboard-card recent-activity">
-      <div className="dashboard-card__header">
-        <div>
-          <span className="type-label text-muted-foreground">AUDIT TRAIL</span>
-          <h3 className="type-card-title">Aktivitas Terbaru</h3>
-        </div>
-      </div>
-      <div className="activity-list">
-        {entries.map((entry) => (
-          <div className="activity-item" key={entry.id}>
-            <div>
-              <p className="type-body">
-                <strong>{entry.user}</strong> · {entry.action}
-              </p>
-              <span className="type-meta text-muted-foreground">
-                {entry.detail !== "—" && `${entry.detail} · `}
-                {new Intl.DateTimeFormat("id-ID", {
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(entry.time))}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  )
-}
-
-export default function Dashboard({
-  onNavigate,
-}: {
-  onNavigate: (page: string) => void
-}) {
+export default function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
   const { capabilities } = useAccess()
   const { error } = useSynraStore()
   const kpiCards = useKpiCards()
 
   return (
-    <div className="dashboard-grid">
+    <div className="grid min-w-0 grid-cols-12 gap-4 md:gap-6">
       {error && (
-        <div style={{ gridColumn: "1 / -1" }}>
+        <div className="col-span-12">
           <ApiErrorBanner message={error} />
         </div>
       )}
-      <div className="dashboard-kpis">
-        {kpiCards.map((card) => (
-          <KpiCard
+
+      <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 xl:grid-cols-6">
+        {kpiCards.map((card, index) => (
+          <motion.div
             key={card.id}
-            label={card.label}
-            value={card.value}
-            tag={card.tag}
-            tone={card.tone}
-            description={card.description}
-            note={card.note}
-            onAction={() => onNavigate(kpiDestinations[card.id])}
-          />
+            className="min-w-0 [&>*]:h-full"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05, duration: 0.35 }}
+          >
+            <KpiCard
+              label={card.label}
+              value={card.value}
+              tag={card.tag}
+              tone={card.tone}
+              note={card.note}
+              onAction={() => onNavigate(kpiDestinations[card.id])}
+            />
+          </motion.div>
         ))}
       </div>
 
@@ -780,9 +720,8 @@ export default function Dashboard({
       <InsightPanel onNavigate={onNavigate} />
       <AssetDistribution />
       <AvailabilityBreakdown />
-      <LocationStatus />
-      <AlertFunnel />
       <RecentActivity />
+      <LocationStatus />
     </div>
   )
 }

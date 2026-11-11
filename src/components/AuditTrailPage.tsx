@@ -1,4 +1,4 @@
-import { Download } from "lucide-react"
+import { Download, Lock, Search } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
@@ -9,7 +9,6 @@ import {
   DataTable,
   FilterField,
   GlassCard,
-  PageToolbar,
   Pagination,
   Toast,
   usePagination,
@@ -88,16 +87,16 @@ export default function AuditTrailPage() {
   } = usePagination(filtered, 10)
 
   const columns: DataTableColumn<AuditEntry>[] = [
-    { key: "time", header: "Waktu", render: (entry) => formatDateTime(entry.time) },
+    { key: "time", header: "Waktu", render: (entry) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(entry.time)}</span> },
     {
       key: "user",
       header: "Pengguna",
-      render: (entry) => <strong>{entry.user}</strong>,
+      render: (entry) => <strong className="font-medium">{entry.user}</strong>,
     },
     { key: "role", header: "Entitas", render: (entry) => entry.role },
-    { key: "action", header: "Tindakan", render: (entry) => entry.action },
+    { key: "action", header: "Tindakan", render: (entry) => <span className="inline-flex whitespace-nowrap rounded-md border border-border bg-muted px-2 py-0.5 text-xs">{entry.action}</span> },
     { key: "target", header: "Target", render: (entry) => entry.target },
-    { key: "detail", header: "Detail", render: (entry) => entry.detail },
+    { key: "detail", header: "Detail", render: (entry) => <span className="line-clamp-2 min-w-[200px] text-muted-foreground">{entry.detail}</span> },
   ]
 
   /** Ekspor dari server: seluruh audit (bukan hanya 100 entri terbaru), dan ekspornya ikut diaudit. */
@@ -111,18 +110,12 @@ export default function AuditTrailPage() {
   }
 
   return (
-    <div className="audit-page">
+    <div className="flex min-w-0 flex-col gap-6">
       <ApiErrorBanner message={error} />
-      <GlassCard className="audit-panel">
-        <PageToolbar
-          actions={
-            <Button variant="outline" onClick={() => void exportCsv()}>
-              <Download {...iconProps} />
-              Ekspor CSV
-            </Button>
-          }
-        >
-          <FilterField label="Pencarian" className="min-w-[260px] flex-1">
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="audit-search"
               value={search}
@@ -131,12 +124,18 @@ export default function AuditTrailPage() {
                 setPage(1)
               }}
               placeholder="Cari pengguna, tindakan, target, atau detail"
+              aria-label="Cari audit trail"
+              className="pl-9"
             />
-          </FilterField>
-        </PageToolbar>
+          </label>
+          <Button variant="outline" onClick={() => void exportCsv()}>
+            <Download {...iconProps} />
+            Ekspor CSV
+          </Button>
+        </div>
 
-        <div className="flex flex-wrap items-end gap-3 mt-4 mb-4">
-          <FilterField label="Tanggal" className="w-[180px]">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <FilterField label="Tanggal">
             <Input
               type="date"
               value={date}
@@ -147,7 +146,7 @@ export default function AuditTrailPage() {
             />
           </FilterField>
 
-          <FilterField label="Tindakan" className="w-[180px]">
+          <FilterField label="Tindakan">
             <Select
               value={action}
               onValueChange={(val) => {
@@ -169,7 +168,7 @@ export default function AuditTrailPage() {
             </Select>
           </FilterField>
 
-          <FilterField label="Pengguna" className="w-[180px]">
+          <FilterField label="Pengguna">
             <Select
               value={user}
               onValueChange={(val) => {
@@ -192,11 +191,7 @@ export default function AuditTrailPage() {
           </FilterField>
         </div>
 
-        <DataTable
-          columns={columns}
-          rows={paginatedRows}
-          rowKey={(entry) => entry.id}
-        />
+        <DataTable columns={columns} rows={paginatedRows} rowKey={(entry) => entry.id} />
 
         <Pagination
           page={page}
@@ -208,7 +203,8 @@ export default function AuditTrailPage() {
           itemLabel="entri"
         />
 
-        <p className="type-meta text-muted-foreground audit-count mt-3">
+        <p className="flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+          <Lock size={13} aria-hidden="true" />
           {filtered.length} dari 100 entri terbaru · append-only (tidak dapat diubah atau dihapus)
         </p>
       </GlassCard>

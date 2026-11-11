@@ -1,11 +1,13 @@
-import { Plus } from "lucide-react"
+import { KeyRound, Lock, Plus, Save, SlidersHorizontal, UserRound, Users } from "lucide-react"
+import { motion } from "motion/react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
-import { ROLE_OPTIONS, type BackendRole } from "../lib/backend"
+import { METRIC_LABEL, ROLE_OPTIONS, type BackendRole } from "../lib/backend"
 import type { Rule, User } from "../lib/synraDomain"
 import {
+  CardHeading,
   DataTable,
   Drawer,
   FormField,
@@ -28,7 +30,7 @@ import { cn } from "@/lib/utils"
 type AdminTab = "Parameter EWS" | "Pengguna" | "Profil"
 
 const iconProps = {
-  size: 18,
+  size: 16,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
@@ -54,7 +56,7 @@ function AddUserDrawer({
   return (
     <Drawer open title="Tambah Pengguna" onClose={onClose}>
       <form
-        className="asset-form"
+        className="flex flex-col gap-4"
         onSubmit={async (event) => {
           event.preventDefault()
           setSaving(true)
@@ -90,7 +92,7 @@ function AddUserDrawer({
           />
         </FormField>
         <FormField label="Role">
-          <Select
+          <Select items={Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]))}
             value={role}
             onValueChange={(value) => setRole((value ?? "OPERATOR") as BackendRole)}
           >
@@ -107,11 +109,11 @@ function AddUserDrawer({
           </Select>
         </FormField>
         {error && (
-          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+          <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
-        <div className="asset-form__actions">
+        <div className="sticky bottom-0 -mx-5 -mb-5 mt-2 flex justify-end gap-2 border-t border-border bg-popover px-5 py-4">
           <Button type="button" variant="outline" onClick={onClose}>
             Batal
           </Button>
@@ -179,49 +181,75 @@ function EwsParameters() {
     }
   }
 
+  const groups = rules.reduce<Record<string, Rule[]>>((acc, rule) => {
+    const key = rule.metric ?? "Lainnya"
+    ;(acc[key] ??= []).push(rule)
+    return acc
+  }, {})
+  const dirty = rules.some((rule) => rule.id && draft[rule.id] !== undefined && draft[rule.id] !== rule.value)
+  const severityTone: Record<string, string> = {
+    LOW: "bg-warning/60",
+    MEDIUM: "bg-warning",
+    HIGH: "bg-high",
+    CRITICAL: "bg-danger",
+  }
+
   return (
     <>
-      <GlassCard className="ews-parameters">
-        <div className="section-heading mb-6">
-          <span className="type-label text-muted-foreground">EARLY WARNING SYSTEM</span>
-          <h3 className="type-card-title">Threshold Alert ({rules.length} level)</h3>
-          <p className="type-meta text-muted-foreground mt-1">
-            Nilai level satu metrik harus naik sesuai urutan severity (Warning &lt; Medium &lt; High &lt; Critical).
-          </p>
-          {!canConfig && (
-            <p className="type-meta mt-2 text-[var(--status-warning)]" role="note">
-              Hanya akun Administrator yang dapat mengubah threshold. Anda masuk sebagai role lain, jadi nilai di
-              bawah hanya bisa dilihat.
-            </p>
-          )}
-        </div>
-        <div className="ews-grid">
-          {rules.map((rule) => (
-            <label key={rule.id ?? rule.name} className="flex flex-col gap-1.5">
-              <span className="flex items-center justify-between">
-                <strong className="type-body font-medium">{rule.name}</strong>
-                <span className="type-label text-muted-foreground">{rule.unit}</span>
-              </span>
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={valueOf(rule)}
-                disabled={!canConfig}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, [rule.id!]: Number(event.target.value) }))
-                }
-              />
-            </label>
+      <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
+        <CardHeading
+          icon={SlidersHorizontal}
+          title={`Threshold Alert (${rules.length} level)`}
+          description="Nilai level satu metrik harus naik sesuai urutan severity (Warning < Medium < High < Critical)."
+          actions={
+            <Button onClick={() => void save()} {...restrictedAction(canConfig && !saving)}>
+              <Save {...iconProps} />
+              {saving ? "Menyimpan…" : dirty ? "Simpan perubahan" : "Simpan Parameter"}
+            </Button>
+          }
+        />
+        {!canConfig && (
+          <div role="note" className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-warning">
+            <Lock size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            Hanya akun Administrator yang dapat mengubah threshold. Anda masuk sebagai role lain, jadi nilai di bawah hanya bisa
+            dilihat.
+          </div>
+        )}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {Object.entries(groups).map(([metric, items]) => (
+            <div key={metric} className="min-w-0 rounded-xl border border-border bg-muted/30 p-4">
+              <p className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{METRIC_LABEL[metric as keyof typeof METRIC_LABEL] ?? metric}</span>
+                <span className="text-xs text-muted-foreground">{items[0]?.unit}</span>
+              </p>
+              <div className="flex flex-col gap-2.5">
+                {items.map((rule) => {
+                  const changed = rule.id !== undefined && draft[rule.id] !== undefined && draft[rule.id] !== rule.value
+                  return (
+                    <label key={rule.id ?? rule.name} className="flex items-center gap-3">
+                      <span
+                        className={cn("h-8 w-1 shrink-0 rounded-full", severityTone[rule.severity ?? ""] ?? "bg-muted-foreground/40")}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[13px]" title={rule.name}>
+                        {rule.name.split(" · ").slice(1).join(" · ") || rule.name}
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={valueOf(rule)}
+                        disabled={!canConfig}
+                        aria-label={rule.name}
+                        className={cn("h-8 w-24 text-right tabular-nums", changed && "border-primary ring-2 ring-primary/20")}
+                        onChange={(event) => setDraft((current) => ({ ...current, [rule.id!]: Number(event.target.value) }))}
+                      />
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
           ))}
-        </div>
-        <div className="admin-save-row mt-6">
-          <Button
-            onClick={() => void save()}
-            {...restrictedAction(canConfig && !saving)}
-          >
-            {saving ? "Menyimpan…" : "Simpan Parameter"}
-          </Button>
         </div>
       </GlassCard>
       <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
@@ -246,9 +274,20 @@ function UsersAdministration() {
   }
 
   const columns: DataTableColumn<User>[] = [
-    { key: "name", header: "Nama", render: (user) => <strong>{user.name}</strong> },
+    {
+      key: "name",
+      header: "Nama",
+      render: (user) => (
+        <span className="flex items-center gap-2.5 whitespace-nowrap">
+          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-[11px] font-semibold">
+            {user.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+          </span>
+          <strong className="font-medium">{user.name}</strong>
+        </span>
+      ),
+    },
     { key: "email", header: "Username", render: (user) => user.email },
-    { key: "role", header: "Role", render: (user) => user.backendRole ?? user.role },
+    { key: "role", header: "Role", render: (user) => <span className="inline-flex rounded-md border border-border bg-muted px-2 py-0.5 text-xs">{user.backendRole ?? user.role}</span> },
     {
       key: "status",
       header: "Status",
@@ -300,17 +339,18 @@ function UsersAdministration() {
 
   return (
     <>
-      <GlassCard className="users-admin">
-        <div className="admin-section-header flex items-center justify-between mb-4">
-          <div className="section-heading">
-            <span className="type-label text-muted-foreground">AKSES</span>
-            <h3 className="type-card-title">Pengguna</h3>
-          </div>
-          <Button onClick={() => setDrawerOpen(true)}>
-            <Plus {...iconProps} />
-            Tambah Pengguna
-          </Button>
-        </div>
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-5 md:p-6">
+        <CardHeading
+          icon={Users}
+          title="Pengguna"
+          description={`${users.length} akun terdaftar`}
+          actions={
+            <Button onClick={() => setDrawerOpen(true)}>
+              <Plus {...iconProps} />
+              Tambah Pengguna
+            </Button>
+          }
+        />
         <DataTable columns={columns} rows={users} rowKey={(user) => user.id} />
       </GlassCard>
       {drawerOpen && (
@@ -355,22 +395,20 @@ function ProfileAdministration() {
 
   return (
     <>
-      <GlassCard className="profile-admin">
-        <div className="section-heading mb-4">
-          <span className="type-label text-muted-foreground">PROFIL</span>
-          <h3 className="type-card-title">{user.username}</h3>
-        </div>
-        <div className="profile-admin__form">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
+          <CardHeading icon={UserRound} title="Profil" description={`@${user.username} · ${user.role}`} />
           <FormField label="Nama">
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </FormField>
-        </div>
-        <div className="admin-save-row mt-4 mb-6">
-          <Button onClick={() => void saveName()}>
+          <Button className="self-start" onClick={() => void saveName()}>
+            <Save {...iconProps} />
             Simpan Nama
           </Button>
-        </div>
-        <div className="profile-admin__form flex flex-col gap-4">
+        </GlassCard>
+
+        <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
+          <CardHeading icon={KeyRound} title="Kata Sandi" description="Ganti kata sandi akun ini" />
           <FormField label="Kata sandi lama">
             <Input
               type="password"
@@ -387,33 +425,49 @@ function ProfileAdministration() {
               onChange={(event) => setNewPassword(event.target.value)}
             />
           </FormField>
-        </div>
-        <div className="admin-save-row mt-4">
-          <Button onClick={() => void savePassword()}>
+          <Button className="self-start" onClick={() => void savePassword()}>
             Ganti Kata Sandi
           </Button>
-        </div>
-      </GlassCard>
+        </GlassCard>
+      </div>
       <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
     </>
   )
 }
 
+const adminTabs: { id: AdminTab; icon: typeof SlidersHorizontal }[] = [
+  { id: "Parameter EWS", icon: SlidersHorizontal },
+  { id: "Pengguna", icon: Users },
+  { id: "Profil", icon: UserRound },
+]
+
 export default function AdministrationPage() {
   const [tab, setTab] = useState<AdminTab>("Parameter EWS")
 
   return (
-    <div className="administration-page">
-      <div className="admin-tabs" role="tablist" aria-label="Administrasi">
-        {(["Parameter EWS", "Pengguna", "Profil"] as AdminTab[]).map((item) => (
+    <div className="flex min-w-0 flex-col gap-6">
+      <div role="tablist" aria-label="Administrasi" className="flex w-full overflow-x-auto rounded-xl border border-border bg-muted/50 p-1 sm:w-fit">
+        {adminTabs.map(({ id, icon: Icon }) => (
           <button
-            key={item}
+            key={id}
             role="tab"
-            aria-selected={tab === item}
-            className={cn("type-body", tab === item ? "admin-tabs__active" : "")}
-            onClick={() => setTab(item)}
+            type="button"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={cn(
+              "relative flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:flex-none",
+              tab === id ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
           >
-            {item}
+            {tab === id && (
+              <motion.span
+                layoutId="admin-tab"
+                className="absolute inset-0 rounded-lg border border-border bg-card shadow-sm"
+                transition={{ type: "spring", stiffness: 500, damping: 38 }}
+              />
+            )}
+            <Icon size={15} className="relative" aria-hidden="true" />
+            <span className="relative">{id}</span>
           </button>
         ))}
       </div>

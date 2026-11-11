@@ -1,14 +1,11 @@
+import { Activity, BarChart3, HardDrive, Server } from "lucide-react"
+import { motion } from "motion/react"
 import { useMemo } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
-import type { Asset } from "../lib/synraDomain"
-import {
-  DataTable,
-  GlassCard,
-  ScopeNotice,
-  SeverityBadge,
-  StatusBadge,
-  type DataTableColumn,
-} from "./ui"
+import type { Asset, Severity } from "../lib/synraDomain"
+import { CardHeading, DataTable, GlassCard, ScopeNotice, SeverityBadge, StatusBadge, type DataTableColumn } from "./ui"
+import { NumberTicker } from "@/components/aceternity/number-ticker"
+import { cn } from "@/lib/utils"
 
 export type MonitoringName =
   | "Infrastruktur"
@@ -26,6 +23,8 @@ const typeMap: Record<MonitoringName, string[] | null> = {
   "Backup & Keamanan": [],
 }
 
+const metricColor = { cpu: "bg-primary", memory: "bg-info", disk: "bg-secondary-foreground/40" } as const
+
 function statusTone(status: Asset["status"]) {
   if (status === "Online") return "success" as const
   if (status === "Degraded" || status === "Offline") return "danger" as const
@@ -34,100 +33,113 @@ function statusTone(status: Asset["status"]) {
 
 function average(values: number[]) {
   if (values.length === 0) return 0
-  return Math.round(
-    (values.reduce((total, value) => total + value, 0) / values.length) * 10,
-  ) / 10
+  return Math.round((values.reduce((total, value) => total + value, 0) / values.length) * 10) / 10
+}
+
+function pctTone(value: number) {
+  return value >= 90 ? "text-danger" : value >= 80 ? "text-warning" : ""
 }
 
 function ComparisonChart({ assets }: { assets: Asset[] }) {
   return (
-    <GlassCard className="monitoring-chart">
-      <div className="section-heading">
-        <span className="type-label text-muted-foreground">UTILISASI</span>
-        <h3 className="type-card-title">Perbandingan Metrik Aset</h3>
-      </div>
-      {assets.length > 0 ? (
-        <div className="comparison-chart">
-          <div className="comparison-chart__legend">
-            <span className="comparison-chart__cpu">CPU</span>
-            <span className="comparison-chart__memory">Memory</span>
-            <span className="comparison-chart__disk">Disk</span>
-          </div>
-          <div className="comparison-chart__rows">
-            {assets.map((asset) => (
-              <div className="comparison-row" key={asset.id}>
-                <strong className="type-body font-medium">{asset.name}</strong>
-                <div className="comparison-row__bars">
-                  <span
-                    className="comparison-bar comparison-bar--cpu"
-                    style={{ width: `${asset.cpu}%` }}
-                  >
-                    {asset.cpu}%
-                  </span>
-                  <span
-                    className="comparison-bar comparison-bar--memory"
-                    style={{ width: `${asset.memory}%` }}
-                  >
-                    {asset.memory}%
-                  </span>
-                  <span
-                    className="comparison-bar comparison-bar--disk"
-                    style={{ width: `${asset.disk}%` }}
-                  >
-                    {asset.disk.toLocaleString("id-ID")}%
-                  </span>
-                </div>
-              </div>
+    <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
+      <CardHeading
+        icon={BarChart3}
+        title="Perbandingan Metrik Aset"
+        description="Utilisasi terbaru per aset"
+        actions={
+          <div className="hidden gap-3 text-xs text-muted-foreground sm:flex">
+            {(["cpu", "memory", "disk"] as const).map((metric) => (
+              <span key={metric} className="flex items-center gap-1.5">
+                <span className={cn("h-2 w-3 rounded-sm", metricColor[metric])} />
+                {metric === "cpu" ? "CPU" : metric === "memory" ? "Memori" : "Disk"}
+              </span>
             ))}
           </div>
+        }
+      />
+      {assets.length > 0 ? (
+        <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+          {assets.map((asset, rowIndex) => (
+            <div key={asset.id} className="min-w-0">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <strong className="truncate text-sm font-medium">{asset.name}</strong>
+                <span className="shrink-0 text-xs text-muted-foreground">{asset.location}</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {(["cpu", "memory", "disk"] as const).map((metric, index) => (
+                  <div key={metric} className="flex items-center gap-2">
+                    <span className="w-10 shrink-0 text-[11px] text-muted-foreground">
+                      {metric === "cpu" ? "CPU" : metric === "memory" ? "Mem" : "Disk"}
+                    </span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <motion.div
+                        className={cn("h-full rounded-full", metricColor[metric])}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(asset[metric], 100)}%` }}
+                        transition={{ duration: 0.7, delay: Math.min(rowIndex, 8) * 0.03 + index * 0.05 }}
+                      />
+                    </div>
+                    <span className={cn("w-12 shrink-0 text-right text-xs font-medium tabular-nums", pctTone(asset[metric]))}>
+                      {asset[metric].toLocaleString("id-ID")}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
-        <p className="type-body text-muted-foreground">
-          Tidak ada aset yang sesuai dengan kategori monitoring ini.
-        </p>
+        <p className="type-meta">Tidak ada aset yang sesuai dengan kategori monitoring ini.</p>
       )}
     </GlassCard>
   )
 }
 
+function diskSeverity(value: number): Severity {
+  return value >= 95 ? "Critical" : value >= 90 ? "High" : value >= 80 ? "Medium" : value >= 70 ? "Low" : "Normal"
+}
+
 function DiskByMount({ assets }: { assets: Asset[] }) {
-  const rows = assets.flatMap((asset) =>
-    (asset.disks ?? []).map((disk) => ({ asset, ...disk })),
-  )
+  const rows = assets.flatMap((asset) => (asset.disks ?? []).map((disk) => ({ asset, ...disk })))
   rows.sort((a, b) => b.value - a.value)
+  type Row = (typeof rows)[number]
+  const columns: DataTableColumn<Row>[] = [
+    { key: "asset", header: "Aset", render: (row) => <strong className="font-medium">{row.asset.name}</strong> },
+    { key: "host", header: "Host", render: (row) => row.asset.location },
+    { key: "mount", header: "Mount point", render: (row) => <span className="font-mono text-xs">{row.mountPoint}</span> },
+    {
+      key: "used",
+      header: "Terpakai",
+      render: (row) => (
+        <span className="flex w-[160px] items-center gap-2">
+          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <span
+              className={cn("block h-full rounded-full", row.value >= 90 ? "bg-danger" : row.value >= 80 ? "bg-warning" : "bg-primary")}
+              style={{ width: `${Math.min(row.value, 100)}%` }}
+            />
+          </span>
+          <span className={cn("w-12 text-right text-xs font-medium tabular-nums", pctTone(row.value))}>
+            {row.value.toLocaleString("id-ID")}%
+          </span>
+        </span>
+      ),
+    },
+    { key: "sev", header: "Severity", render: (row) => <SeverityBadge severity={diskSeverity(row.value)} /> },
+  ]
   return (
-    <GlassCard className="storage-forecast">
-      <div className="section-heading">
-        <span className="type-label text-muted-foreground">DISK</span>
-        <h3 className="type-card-title">Pemakaian per Mount Point</h3>
-      </div>
-      <div className="forecast-table-wrap">
-        <table className="forecast-table">
-          <thead>
-            <tr>
-              <th>Aset</th>
-              <th>Host</th>
-              <th>Mount point</th>
-              <th>Terpakai</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={`${row.asset.id}${row.mountPoint}`}
-                data-severity={row.value >= 95 ? "Critical" : row.value >= 90 ? "High" : row.value >= 80 ? "Medium" : row.value >= 70 ? "Low" : "Normal"}
-              >
-                <td>
-                  <strong>{row.asset.name}</strong>
-                </td>
-                <td>{row.asset.location}</td>
-                <td>{row.mountPoint}</td>
-                <td>{row.value.toLocaleString("id-ID")}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
+      <CardHeading icon={HardDrive} title="Pemakaian per Mount Point" description="Urut dari yang paling penuh" />
+      {rows.length === 0 ? (
+        <p className="type-meta">Belum ada data disk.</p>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => `${row.asset.id}${row.mountPoint}`}
+          rowSeverity={(row) => diskSeverity(row.value)}
+        />
+      )}
     </GlassCard>
   )
 }
@@ -135,39 +147,38 @@ function DiskByMount({ assets }: { assets: Asset[] }) {
 function AvailabilityTable() {
   const { api } = useSynraStore()
   const rows = api.availability?.assets ?? []
+  type Row = (typeof rows)[number]
+  const columns: DataTableColumn<Row>[] = [
+    { key: "asset", header: "Aset", render: (row) => <strong className="font-medium">{row.hostname}</strong> },
+    { key: "host", header: "Host", render: (row) => row.host },
+    { key: "component", header: "Komponen", render: (row) => row.component },
+    {
+      key: "pct",
+      header: "Availability",
+      render: (row) => (
+        <span
+          className={cn(
+            "font-medium tabular-nums",
+            row.pct === null ? "text-muted-foreground" : row.pct >= 99 ? "text-success" : row.pct >= 95 ? "text-warning" : "text-danger",
+          )}
+        >
+          {row.pct === null ? "—" : `${row.pct.toLocaleString("id-ID")}%`}
+        </span>
+      ),
+    },
+  ]
   return (
-    <GlassCard className="storage-forecast">
-      <div className="section-heading">
-        <span className="type-label text-muted-foreground">AVAILABILITY</span>
-        <h3 className="type-card-title">
-          Availability 24 Jam
-          {api.availability?.averagePct != null && ` · rata-rata ${api.availability.averagePct.toLocaleString("id-ID")}%`}
-        </h3>
-      </div>
-      <div className="forecast-table-wrap">
-        <table className="forecast-table">
-          <thead>
-            <tr>
-              <th>Aset</th>
-              <th>Host</th>
-              <th>Komponen</th>
-              <th>Availability</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.assetId}>
-                <td>
-                  <strong>{row.hostname}</strong>
-                </td>
-                <td>{row.host}</td>
-                <td>{row.component}</td>
-                <td>{row.pct === null ? "—" : `${row.pct.toLocaleString("id-ID")}%`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
+      <CardHeading
+        icon={Activity}
+        title="Availability 24 Jam"
+        description={
+          api.availability?.averagePct != null
+            ? `Rata-rata ${api.availability.averagePct.toLocaleString("id-ID")}%`
+            : "Persentase menit dengan data masuk"
+        }
+      />
+      <DataTable columns={columns} rows={rows} rowKey={(row) => row.assetId} />
     </GlassCard>
   )
 }
@@ -177,10 +188,7 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
   const assets = read("assets")
   const relevantTypes = typeMap[name]
   const relevant = useMemo(
-    () =>
-      assets.filter(
-        (asset) => relevantTypes === null || relevantTypes.includes(asset.type),
-      ),
+    () => assets.filter((asset) => relevantTypes === null || relevantTypes.includes(asset.type)),
     [assets, relevantTypes],
   )
   const online = relevant.filter((asset) => asset.status === "Online").length
@@ -193,70 +201,48 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       key: "asset",
       header: "Aset",
       render: (asset) => (
-        <div className="table-primary">
-          <strong>{asset.name}</strong>
-          <span className="type-meta text-muted-foreground">{asset.ipAddress}</span>
-        </div>
+        <span className="flex flex-col">
+          <strong className="whitespace-nowrap font-medium">{asset.name}</strong>
+          <span className="font-mono text-[11px] text-muted-foreground">{asset.ipAddress}</span>
+        </span>
       ),
     },
     { key: "type", header: "Komponen", render: (asset) => asset.type },
     { key: "location", header: "Host", render: (asset) => asset.location },
-    {
-      key: "status",
-      header: "Status",
-      render: (asset) => (
-        <StatusBadge status={asset.status} tone={statusTone(asset.status)} />
+    { key: "status", header: "Status", render: (asset) => <StatusBadge status={asset.status} tone={statusTone(asset.status)} /> },
+    { key: "severity", header: "Severity", render: (asset) => <SeverityBadge severity={asset.severity} /> },
+    ...(["cpu", "memory", "disk"] as const).map((metric) => ({
+      key: metric,
+      header: metric === "cpu" ? "CPU" : metric === "memory" ? "Memori" : "Disk",
+      render: (asset: Asset) => (
+        <span className={cn("tabular-nums", pctTone(asset[metric]))}>{asset[metric].toLocaleString("id-ID")}%</span>
       ),
-    },
-    {
-      key: "severity",
-      header: "Severity",
-      render: (asset) => <SeverityBadge severity={asset.severity} />,
-    },
-    {
-      key: "cpu",
-      header: "CPU",
-      render: (asset) => `${asset.cpu.toLocaleString("id-ID")}%`,
-    },
-    {
-      key: "memory",
-      header: "Memory",
-      render: (asset) => `${asset.memory.toLocaleString("id-ID")}%`,
-    },
-    {
-      key: "disk",
-      header: "Disk",
-      render: (asset) => `${asset.disk.toLocaleString("id-ID")}%`,
-    },
+    })),
+  ]
+
+  const stats: [string, string][] = [
+    ["Total aset", String(relevant.length)],
+    ["Daring", `${online}/${relevant.length}`],
+    ["Rata-rata CPU", `${averageCpu.toLocaleString("id-ID")}%`],
+    ["Memori / disk", `${averageMemory.toLocaleString("id-ID")}% / ${averageDisk.toLocaleString("id-ID")}%`],
   ]
 
   return (
-    <div className="monitoring-page">
+    <div className="flex min-w-0 flex-col gap-6">
       {name === "Backup & Keamanan" && (
         <ScopeNotice>
-          Pilot SYNRA hanya menerima CPU, memori, disk, uptime (Metricbeat) dan jumlah log error (Filebeat).
-          Data backup dan keamanan belum tersedia.
+          Pilot SYNRA hanya menerima CPU, memori, disk, uptime (Metricbeat) dan jumlah log error (Filebeat). Data backup dan
+          keamanan belum tersedia.
         </ScopeNotice>
       )}
-      <div className="monitoring-summary">
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Total aset</span>
-          <strong className="bigcopy">{relevant.length}</strong>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Daring</span>
-          <strong className="bigcopy">{online}</strong>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Rata-rata CPU</span>
-          <strong className="bigcopy">{averageCpu}%</strong>
-        </GlassCard>
-        <GlassCard>
-          <span className="type-meta text-muted-foreground">Memori / disk</span>
-          <strong className="bigcopy">
-            {averageMemory}% / {averageDisk}%
-          </strong>
-        </GlassCard>
+
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        {stats.map(([label, value]) => (
+          <GlassCard key={label} className="min-w-0 p-4 md:p-5">
+            <p className="type-label text-muted-foreground">{label}</p>
+            <NumberTicker value={value} className="mt-1.5 block truncate text-xl font-semibold tracking-tight md:text-2xl" />
+          </GlassCard>
+        ))}
       </div>
 
       <ComparisonChart assets={relevant} />
@@ -264,17 +250,13 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       {name === "Storage & Kapasitas" && <DiskByMount assets={relevant} />}
       {name === "Availability & Performa" && <AvailabilityTable />}
 
-      <GlassCard className="monitoring-table">
-        <div className="section-heading">
-          <span className="type-label text-muted-foreground">ASET TERKAIT</span>
-          <h3 className="type-card-title">Daftar Aset {name}</h3>
-        </div>
-        <DataTable
-          columns={columns}
-          rows={relevant}
-          rowKey={(asset) => asset.id}
-          rowSeverity={(asset) => asset.severity}
-        />
+      <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
+        <CardHeading icon={Server} title="Aset Terkait" description={`${relevant.length} aset pada kategori ini`} />
+        {relevant.length > 0 ? (
+          <DataTable columns={columns} rows={relevant} rowKey={(asset) => asset.id} rowSeverity={(asset) => asset.severity} />
+        ) : (
+          <p className="type-meta">Belum ada aset.</p>
+        )}
       </GlassCard>
     </div>
   )
