@@ -23,7 +23,7 @@ export interface Asset {
 export interface LifecycleItem {
   id: string
   name: string
-  category: "licenses" | "certificates" | "warranty" | "contracts"
+  category: "os" | "licenses" | "certificates" | "warranty" | "contracts"
   location: string
   pic: string
   status: string

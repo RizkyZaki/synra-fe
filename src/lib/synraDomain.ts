@@ -53,7 +53,10 @@ export interface Asset extends Omit<(typeof assets)[number], "status" | "locatio
 }
 
 export interface LifecycleItem {
+  /** UUID backend */
   id: string
+  /** Kode tampilan, mis. LIC-001 */
+  code: string
   name: string
   type: (typeof lifecycleItems)[number]["category"]
   location: string
@@ -63,6 +66,9 @@ export interface LifecycleItem {
   quantity: number
   allocated: number
   note: string
+  vendor?: string
+  daysLeft?: number
+  pendingRenewals?: number
 }
 
 export interface AlertItem {
@@ -89,12 +95,18 @@ export interface AlertItem {
 }
 
 export interface RenewalRequest {
+  /** UUID backend */
   id: string
+  /** Kode tampilan, mis. REQ-001 */
+  code: string
   itemId: string
   itemName: string
   requestedBy: string
   status: "Menunggu" | "Disetujui" | "Ditolak"
   createdAt: string
+  note?: string | null
+  decidedBy?: string | null
+  decisionNote?: string | null
 }
 
 export interface NotificationItem {
@@ -135,6 +147,8 @@ export interface Rule {
   // Field dari backend SYNRA
   id?: string
   metric?: string
+  severity?: string
+  operator?: "GT" | "GTE"
   enabled?: boolean
 }
 
@@ -154,6 +168,7 @@ export function seedAll(): SynraState {
     assets: assets.map((asset) => ({ ...asset })),
     lifecycle: lifecycleItems.map((item) => ({
       ...item,
+      code: item.id,
       type: item.category,
       quantity: item.quantity ?? 1,
       allocated: item.allocated ?? 0,
@@ -165,6 +180,7 @@ export function seedAll(): SynraState {
     })),
     requests: SAMPLE_requests.map((request) => ({
       id: request.id,
+      code: request.id,
       itemId: request.itemId,
       itemName: request.title.replace(/^Perpanjangan /, ""),
       requestedBy: request.pic,

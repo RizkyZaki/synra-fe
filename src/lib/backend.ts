@@ -4,7 +4,9 @@ import type {
   AlertStatus,
   Asset,
   AuditEntry,
+  LifecycleItem,
   NotificationItem,
+  RenewalRequest,
   Rule,
   Severity,
   User,
@@ -137,6 +139,41 @@ export interface ThresholdLevelDto {
   enabled: boolean
 }
 
+export type LifecycleCategoryDto = "OS" | "LICENSE" | "CERTIFICATE" | "WARRANTY" | "CONTRACT"
+export type LifecycleStatusDto = "ACTIVE" | "RENEWED" | "TERMINATED" | "INACTIVE"
+
+export interface LifecycleItemDto {
+  id: string
+  code: string
+  name: string
+  category: LifecycleCategoryDto
+  status: LifecycleStatusDto
+  expiryDate: string
+  quantity: number
+  allocated: number
+  location: string | null
+  picName: string | null
+  vendor: string | null
+  notes: string | null
+  daysLeft: number
+  pendingRenewals: number
+}
+
+export interface RenewalDto {
+  id: string
+  code: string
+  itemId: string
+  itemCode: string
+  itemName: string
+  status: "PENDING" | "APPROVED" | "REJECTED"
+  note: string | null
+  requestedByName: string
+  decidedByName: string | null
+  decisionNote: string | null
+  decidedAt: string | null
+  createdAt: string
+}
+
 export interface ThresholdGroupDto {
   metric: RuleMetric
   unit: string
@@ -265,6 +302,11 @@ const AUDIT_LABEL: Record<string, string> = {
   HOST_CREATE: "Host ditambahkan",
   HOST_UPDATE: "Host diperbarui",
   HOST_DELETE: "Host dihapus",
+  LIFECYCLE_CREATE: "Item siklus hidup ditambahkan",
+  LIFECYCLE_UPDATE: "Item siklus hidup diperbarui",
+  LIFECYCLE_DELETE: "Item siklus hidup dihapus",
+  RENEWAL_REQUEST: "Pengajuan perpanjangan",
+  RENEWAL_DECIDE: "Keputusan perpanjangan",
 }
 
 export const ALERT_EVENT_LABEL: Record<string, string> = {
@@ -395,6 +437,8 @@ export function toRules(groups: ThresholdGroupDto[]): Rule[] {
     g.levels.map((l) => ({
       id: l.id,
       metric: g.metric,
+      severity: l.severity,
+      operator: l.operator,
       name: `${METRIC_LABEL[g.metric]} · ${SEVERITY_LABEL[l.severity]} (${l.operator === "GT" ? ">" : "≥"})`,
       value: l.value,
       unit: g.unit,
@@ -476,6 +520,28 @@ function describeAudit(a: AuditDto): { target: string; detail: string } {
       const v = Object.keys(after).length ? after : before
       return { target: str(v.hostname) || "Aset", detail: join(str(v.ipAddress), str(v.component), str(v.picName)) }
     }
+    case "LIFECYCLE_CREATE":
+    case "LIFECYCLE_UPDATE":
+    case "LIFECYCLE_DELETE": {
+      const v = Object.keys(after).length ? after : before
+      return {
+        target: join(str(v.code), str(v.name)),
+        detail: join(`Berakhir ${str(v.expiryDate)}`, LIFECYCLE_STATUS_TO_FE[v.status as LifecycleStatusDto] ?? str(v.status)),
+      }
+    }
+    case "RENEWAL_REQUEST":
+    case "RENEWAL_DECIDE":
+      return {
+        target: join(str(after.code), str(after.itemName)),
+        detail:
+          a.action === "RENEWAL_REQUEST"
+            ? join("Diajukan", str(after.note))
+            : join(
+                after.status === "APPROVED" ? "Disetujui" : "Ditolak",
+                after.status === "APPROVED" ? `berakhir ${str(after.expiryDate)}` : "",
+                str(after.note),
+              ),
+      }
     case "USER_CREATE":
     case "USER_UPDATE": {
       const changed = Object.keys(after).filter((k) => JSON.stringify(after[k]) !== JSON.stringify(before[k]))
@@ -520,5 +586,68 @@ export function toNotification(n: NotificationDto): NotificationItem {
     target: n.alert ? n.alert.problem : "Chat Telegram",
     time: formatDateTime(n.createdAt),
     status: NOTIF_STATUS[n.status],
+  }
+}
+
+// ---------- Siklus hidup ----------
+export const LIFECYCLE_CATEGORY_TO_FE: Record<LifecycleCategoryDto, LifecycleItem["type"]> = {
+  OS: "os",
+  LICENSE: "licenses",
+  CERTIFICATE: "certificates",
+  WARRANTY: "warranty",
+  CONTRACT: "contracts",
+}
+export const LIFECYCLE_CATEGORY_TO_BE = Object.fromEntries(
+  Object.entries(LIFECYCLE_CATEGORY_TO_FE).map(([be, fe]) => [fe, be]),
+) as Record<LifecycleItem["type"], LifecycleCategoryDto>
+
+/** Label status di FE tetap seperti sebelumnya supaya badge dan pilihan form tidak berubah. */
+export const LIFECYCLE_STATUS_TO_FE: Record<LifecycleStatusDto, string> = {
+  ACTIVE: "Aktif",
+  RENEWED: "Renewed",
+  TERMINATED: "Terminated",
+  INACTIVE: "Nonaktif",
+}
+export const LIFECYCLE_STATUS_TO_BE = Object.fromEntries(
+  Object.entries(LIFECYCLE_STATUS_TO_FE).map(([be, fe]) => [fe, be]),
+) as Record<string, LifecycleStatusDto>
+
+const RENEWAL_STATUS_TO_FE: Record<RenewalDto["status"], RenewalRequest["status"]> = {
+  PENDING: "Menunggu",
+  APPROVED: "Disetujui",
+  REJECTED: "Ditolak",
+}
+
+export function toLifecycle(i: LifecycleItemDto): LifecycleItem {
+  return {
+    id: i.id,
+    code: i.code,
+    name: i.name,
+    type: LIFECYCLE_CATEGORY_TO_FE[i.category],
+    location: i.location ?? "—",
+    pic: i.picName ?? "—",
+    status: LIFECYCLE_STATUS_TO_FE[i.status],
+    expiry: i.expiryDate,
+    quantity: i.quantity,
+    allocated: i.allocated,
+    note: i.notes ?? "",
+    vendor: i.vendor ?? undefined,
+    daysLeft: i.daysLeft,
+    pendingRenewals: i.pendingRenewals,
+  }
+}
+
+export function toRenewal(r: RenewalDto): RenewalRequest {
+  return {
+    id: r.id,
+    code: r.code,
+    itemId: r.itemId,
+    itemName: r.itemName,
+    requestedBy: r.requestedByName,
+    status: RENEWAL_STATUS_TO_FE[r.status],
+    createdAt: formatDateTime(r.createdAt),
+    note: r.note,
+    decidedBy: r.decidedByName,
+    decisionNote: r.decisionNote,
   }
 }

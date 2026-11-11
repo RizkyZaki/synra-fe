@@ -1,8 +1,12 @@
-﻿import { Pencil } from "lucide-react"
+﻿import { Pencil, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
-import { createAuditEntry } from "../lib/audit"
+import { ApiError } from "../lib/api"
+import {
+  LIFECYCLE_CATEGORY_TO_BE,
+  LIFECYCLE_STATUS_TO_BE,
+} from "../lib/backend"
 import { restrictedAction, useAccess } from "../lib/useAccess"
-import { useSynraStore } from "../lib/useSynraStore"
+import { useSynraStore, type LifecycleInput } from "../lib/useSynraStore"
 import type {
   LifecycleItem,
   RenewalRequest,
@@ -11,18 +15,16 @@ import type {
 import {
   DataTable,
   Drawer,
-  Pagination,
-  usePagination,
   FormField,
   GlassCard,
   SeverityBadge,
   StatusBadge,
   Toast,
   type DataTableColumn,
-  ScopeNotice,
 } from "./ui"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -38,8 +40,8 @@ export type LifecyclePageName =
   | "Garansi Hardware"
   | "Kontrak Vendor"
 
-const typeMap: Record<LifecyclePageName, LifecycleItem["type"] | null> = {
-  "Lifecycle OS": null,
+const typeMap: Record<LifecyclePageName, LifecycleItem["type"]> = {
+  "Lifecycle OS": "os",
   "Lisensi Software": "licenses",
   "Sertifikat SSL/TLS": "certificates",
   "Garansi Hardware": "warranty",
@@ -54,19 +56,20 @@ const lifecycleCardTitles: Record<LifecyclePageName, string> = {
   "Kontrak Vendor": "Daftar Kontrak",
 }
 
-const lifecycleTitles: Record<LifecyclePageName, string> = {
-  "Lifecycle OS": "Siklus Hidup OS",
-  "Lisensi Software": "Lisensi Perangkat Lunak",
-  "Sertifikat SSL/TLS": "Sertifikat SSL/TLS",
-  "Garansi Hardware": "Garansi Perangkat Keras",
-  "Kontrak Vendor": "Kontrak Vendor",
-}
-
 const iconProps = {
   size: 20,
   strokeWidth: 1.75,
   "aria-hidden": true,
 } as const
+
+const errorText = (e: unknown, fallback: string) =>
+  e instanceof ApiError ? e.message : fallback
+
+/** Tanggal YYYY-MM-DD ditambah n tahun (untuk usulan tanggal berakhir baru). */
+const plusYears = (date: string, years: number) => {
+  const [y, m, d] = date.split("-").map(Number)
+  return `${y + years}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+}
 
 function ExpiryStatus({ days }: { days: number }) {
   const { helpers } = useSynraStore()
@@ -83,38 +86,58 @@ function requestTone(status: RenewalRequest["status"]) {
   return "warning" as const
 }
 
-function LifecycleEditDrawer({
+interface FormValues {
+  name: string
+  location: string
+  picName: string
+  vendor: string
+  quantity: number
+  allocated: number
+  expiry: string
+  status: string
+}
+
+/** Form tambah dan ubah item. Kategori mengikuti halaman yang sedang dibuka. */
+function LifecycleFormDrawer({
   item,
+  title,
   onClose,
   onSave,
 }: {
-  item: LifecycleItem
+  item: LifecycleItem | null
+  title: string
   onClose: () => void
-  onSave: (
-    values: Pick<
-      LifecycleItem,
-      "quantity" | "allocated" | "expiry" | "status"
-    >,
-  ) => string | null
+  onSave: (values: FormValues) => Promise<string | null>
 }) {
-  const [quantity, setQuantity] = useState(item.quantity)
-  const [allocated, setAllocated] = useState(item.allocated)
-  const [expiry, setExpiry] = useState(item.expiry)
-  const [status, setStatus] = useState(item.status)
+  const [values, setValues] = useState<FormValues>({
+    name: item?.name ?? "",
+    location: item && item.location !== "—" ? item.location : "",
+    picName: item && item.pic !== "—" ? item.pic : "",
+    vendor: item?.vendor ?? "",
+    quantity: item?.quantity ?? 1,
+    allocated: item?.allocated ?? 0,
+    expiry: item?.expiry ?? "",
+    status: item?.status ?? "Aktif",
+  })
   const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
+    setValues((current) => ({ ...current, [key]: value }))
 
   return (
-    <Drawer open title="Ubah siklus hidup" onClose={onClose}>
+    <Drawer open title={title} onClose={onClose}>
       <form
         className="asset-form"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault()
-          const nextError = onSave({
-            quantity,
-            allocated,
-            expiry,
-            status,
-          })
+          if (!values.name.trim()) return setError("Nama wajib diisi.")
+          if (!values.expiry) return setError("Tanggal berakhir wajib diisi.")
+          if (values.quantity <= 0 || values.allocated < 0 || values.allocated > values.quantity) {
+            return setError("Jumlah terpakai tidak boleh melebihi kuota.")
+          }
+          setSaving(true)
+          const nextError = await onSave(values)
+          setSaving(false)
           if (nextError) {
             setError(nextError)
             return
@@ -122,33 +145,45 @@ function LifecycleEditDrawer({
           onClose()
         }}
       >
+        <FormField label="Nama">
+          <Input value={values.name} onChange={(event) => set("name", event.target.value)} />
+        </FormField>
+        <FormField label="Lokasi">
+          <Input value={values.location} onChange={(event) => set("location", event.target.value)} />
+        </FormField>
+        <FormField label="PIC">
+          <Input value={values.picName} onChange={(event) => set("picName", event.target.value)} />
+        </FormField>
+        <FormField label="Vendor">
+          <Input value={values.vendor} onChange={(event) => set("vendor", event.target.value)} />
+        </FormField>
         <FormField label="Jumlah / kuota">
           <Input
             type="number"
             min="1"
-            value={quantity}
-            onChange={(event) => setQuantity(Number(event.target.value))}
+            value={values.quantity}
+            onChange={(event) => set("quantity", Number(event.target.value))}
           />
         </FormField>
         <FormField label="Terpakai / dialokasikan">
           <Input
             type="number"
             min="0"
-            value={allocated}
-            onChange={(event) => setAllocated(Number(event.target.value))}
+            value={values.allocated}
+            onChange={(event) => set("allocated", Number(event.target.value))}
           />
         </FormField>
-        <FormField label="Tanggal expiry">
+        <FormField label="Tanggal berakhir">
           <Input
             type="date"
-            value={expiry}
-            onChange={(event) => setExpiry(event.target.value)}
+            value={values.expiry}
+            onChange={(event) => set("expiry", event.target.value)}
           />
         </FormField>
         <FormField label="Status">
           <Select
-            value={status}
-            onValueChange={(val) => setStatus((val ?? "Aktif") as LifecycleItem["status"])}
+            value={values.status}
+            onValueChange={(val) => set("status", val ?? "Aktif")}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
@@ -168,10 +203,127 @@ function LifecycleEditDrawer({
         )}
         <div className="asset-form__actions">
           <Button variant="outline" type="button" onClick={onClose}>Batal</Button>
-          <Button type="submit">Simpan perubahan</Button>
+          <Button type="submit" disabled={saving}>{saving ? "Menyimpan…" : "Simpan"}</Button>
         </div>
       </form>
     </Drawer>
+  )
+}
+
+/** Setujui (dengan tanggal berakhir baru) atau tolak pengajuan perpanjangan. */
+function DecideDrawer({
+  request,
+  decision,
+  currentExpiry,
+  onClose,
+  onDecide,
+}: {
+  request: RenewalRequest
+  decision: "APPROVED" | "REJECTED"
+  currentExpiry: string | null
+  onClose: () => void
+  onDecide: (input: { note?: string; newExpiryDate?: string }) => Promise<string | null>
+}) {
+  const approve = decision === "APPROVED"
+  const [newExpiry, setNewExpiry] = useState(currentExpiry ? plusYears(currentExpiry, 1) : "")
+  const [note, setNote] = useState("")
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  return (
+    <Drawer open title={approve ? `Setujui ${request.code}` : `Tolak ${request.code}`} onClose={onClose}>
+      <form
+        className="asset-form"
+        onSubmit={async (event) => {
+          event.preventDefault()
+          if (approve && currentExpiry && newExpiry && newExpiry <= currentExpiry) {
+            return setError("Tanggal berakhir baru harus setelah tanggal berakhir saat ini.")
+          }
+          setSaving(true)
+          const nextError = await onDecide({
+            note: note.trim() || undefined,
+            newExpiryDate: approve && newExpiry ? newExpiry : undefined,
+          })
+          setSaving(false)
+          if (nextError) return setError(nextError)
+          onClose()
+        }}
+      >
+        <p className="type-body text-muted-foreground">
+          {request.itemName} · diajukan oleh {request.requestedBy}
+          {request.note ? ` · "${request.note}"` : ""}
+        </p>
+        {approve && (
+          <FormField label="Tanggal berakhir baru" hint={currentExpiry ? `Saat ini ${currentExpiry}` : undefined}>
+            <Input type="date" value={newExpiry} onChange={(event) => setNewExpiry(event.target.value)} />
+          </FormField>
+        )}
+        <FormField label="Catatan">
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
+        </FormField>
+        {error && (
+          <p className="asset-form__error type-meta text-[var(--status-danger)]" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="asset-form__actions">
+          <Button variant="outline" type="button" onClick={onClose}>Batal</Button>
+          <Button type="submit" variant={approve ? "default" : "destructive"} disabled={saving}>
+            {saving ? "Menyimpan…" : approve ? "Setujui" : "Tolak"}
+          </Button>
+        </div>
+      </form>
+    </Drawer>
+  )
+}
+
+function toInput(values: FormValues, type: LifecycleItem["type"]): LifecycleInput {
+  return {
+    name: values.name.trim(),
+    category: LIFECYCLE_CATEGORY_TO_BE[type],
+    status: LIFECYCLE_STATUS_TO_BE[values.status],
+    expiryDate: values.expiry,
+    quantity: values.quantity,
+    allocated: values.allocated,
+    location: values.location.trim(),
+    picName: values.picName.trim(),
+    vendor: values.vendor.trim(),
+  }
+}
+
+function RequestRow({
+  request,
+  canApprove,
+  onDecide,
+  showItem,
+}: {
+  request: RenewalRequest
+  canApprove: boolean
+  onDecide: (request: RenewalRequest, decision: "APPROVED" | "REJECTED") => void
+  showItem: boolean
+}) {
+  return (
+    <div>
+      <div>
+        <strong className="type-body">{showItem ? request.itemName : request.code}</strong>
+        <span className="type-meta text-muted-foreground">
+          {showItem ? `${request.code} · ` : ""}
+          {request.requestedBy} · {request.createdAt}
+          {request.decidedBy ? ` · diputuskan ${request.decidedBy}` : ""}
+        </span>
+      </div>
+      <StatusBadge status={request.status} tone={requestTone(request.status)} />
+      {request.status === "Menunggu" && canApprove && (
+        <div className="request-list__actions">
+          <Button variant="destructive-outline" size="sm" onClick={() => onDecide(request, "REJECTED")}>
+            Tolak
+          </Button>
+          <Button variant="default" size="sm" onClick={() => onDecide(request, "APPROVED")}>
+            Setujui
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -184,101 +336,38 @@ export default function LifecyclePage({
   selectedId: string | null
   onSelectedIdChange: (id: string | null) => void
 }) {
-  const { read, add, update, helpers } = useSynraStore()
-  const { user, can } = useAccess()
-  const canEdit = can("edit")
-  const canApprove = can("approve")
+  const { read, actions, helpers } = useSynraStore()
+  const { can } = useAccess()
+  // Mengajukan: ADMIN, SUPERVISOR, OPERATOR. Kelola item dan memutuskan: ADMIN, SUPERVISOR.
+  const canRequest = can("edit")
+  const canManage = can("approve")
   const lifecycle = read("lifecycle")
   const requests = read("requests")
-  const audit = read("audit")
   const lifecycleType = typeMap[name]
   const items = useMemo(
-    () =>
-      lifecycleType === null
-        ? []
-        : lifecycle.filter((item) => item.type === lifecycleType),
+    () => lifecycle.filter((item) => item.type === lifecycleType),
     [lifecycle, lifecycleType],
   )
-  const {
-    page,
-    setPage,
-    totalPages,
-    startIndex,
-    endIndex,
-    totalRows,
-    paginatedRows,
-  } = usePagination(items, 10)
-  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<"create" | "edit" | null>(null)
+  const [deciding, setDeciding] = useState<{ request: RenewalRequest; decision: "APPROVED" | "REJECTED" } | null>(null)
   const [toast, setToast] = useState("")
-  const selected =
-    items.find((item) => item.id === selectedId) ??
-    lifecycle.find((item) => item.id === selectedId) ??
-    null
+  const selected = lifecycle.find((item) => item.id === selectedId) ?? null
 
-  const logAudit = (action: string, target: string, detail: string) =>
-    add(
-      "audit",
-      createAuditEntry(read("audit"), user, action, target, detail),
-    )
-
-  const submitRequest = (item: LifecycleItem) => {
-    if (!canEdit) return
-
-    const existing = requests.find(
-      (request) =>
-        request.itemId === item.id && request.status === "Menunggu",
-    )
-    if (existing) {
-      setToast("Pengajuan aktif sudah tersedia")
-      return
+  const submitRequest = async (item: LifecycleItem) => {
+    if (!canRequest) return
+    try {
+      await actions.requestRenewal(item.id)
+      setToast("Pengajuan perpanjangan berhasil dibuat")
+    } catch (e) {
+      setToast(errorText(e, "Gagal membuat pengajuan"))
     }
-    const nextNumber =
-      Math.max(
-        0,
-        ...requests.map(
-          (request) => Number(request.id.replace(/\D/g, "")) || 0,
-        ),
-      ) + 1
-    const request: RenewalRequest = {
-      id: `REQ-${String(nextNumber).padStart(3, "0")}`,
-      itemId: item.id,
-      itemName: item.name,
-      requestedBy: user.name,
-      status: "Menunggu",
-      createdAt: new Date().toISOString(),
-    }
-    add("requests", request)
-    logAudit(
-      "Pengajuan perpanjangan",
-      request.id,
-      `${item.name} diajukan untuk perpanjangan`,
-    )
-    setToast("Pengajuan perpanjangan berhasil dibuat")
   }
 
-  const decideRequest = (
-    request: RenewalRequest,
-    status: "Disetujui" | "Ditolak",
-  ) => {
-    if (!canApprove) return
-
-    update(
-      "requests",
-      (item) => item.id === request.id,
-      { status },
-    )
-    logAudit(
-      status === "Disetujui"
-        ? "Pengajuan disetujui"
-        : "Pengajuan ditolak",
-      request.id,
-      `${request.itemName}: ${status}`,
-    )
-    setToast(`Pengajuan ${status.toLowerCase()}`)
-  }
+  const openDecide = (request: RenewalRequest, decision: "APPROVED" | "REJECTED") =>
+    setDeciding({ request, decision })
 
   const columns: DataTableColumn<LifecycleItem>[] = [
-    { key: "id", header: "ID", render: (item) => item.id },
+    { key: "id", header: "ID", render: (item) => item.code },
     {
       key: "name",
       header: "Nama",
@@ -294,7 +383,7 @@ export default function LifecyclePage({
           ? `${item.quantity} / ${item.allocated}`
           : item.quantity,
     },
-    { key: "expiry", header: "Expiry", render: (item) => item.expiry },
+    { key: "expiry", header: "Berakhir", render: (item) => item.expiry },
     {
       key: "days",
       header: "Sisa Hari",
@@ -328,28 +417,50 @@ export default function LifecyclePage({
     },
   ]
 
+  const decideDrawer = deciding && (
+    <DecideDrawer
+      request={deciding.request}
+      decision={deciding.decision}
+      currentExpiry={lifecycle.find((item) => item.id === deciding.request.itemId)?.expiry ?? null}
+      onClose={() => setDeciding(null)}
+      onDecide={async (input) => {
+        try {
+          await actions.decideRenewal(deciding.request.id, deciding.decision, input)
+          setToast(deciding.decision === "APPROVED" ? "Pengajuan disetujui" : "Pengajuan ditolak")
+          return null
+        } catch (e) {
+          return errorText(e, "Gagal menyimpan keputusan")
+        }
+      }}
+    />
+  )
+
+  const toastEl = (
+    <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
+  )
+
   if (selected) {
     const relatedRequests = requests.filter(
       (request) => request.itemId === selected.id,
     )
+    const hasPending = relatedRequests.some((request) => request.status === "Menunggu")
     return (
       <div className="lifecycle-detail">
-        <ScopeNotice />
         <div className="asset-detail__header">
           <Button
-            onClick={() => setEditing(true)}
-            {...restrictedAction(canEdit)}
+            onClick={() => setForm("edit")}
+            {...restrictedAction(canManage)}
           >
             <Pencil {...iconProps} />
             Ubah siklus hidup
           </Button>
         </div>
         <GlassCard className="lifecycle-detail__summary">
-          <span className="type-label text-muted-foreground">{selected.id}</span>
+          <span className="type-label text-muted-foreground">{selected.code}</span>
           <h3 className="type-card-title">{selected.name}</h3>
           <dl className="asset-summary__meta">
             <div>
-              <dt>Expiry</dt>
+              <dt>Berakhir</dt>
               <dd>{selected.expiry}</dd>
             </div>
             <div>
@@ -366,14 +477,20 @@ export default function LifecyclePage({
                 {selected.allocated} / {selected.quantity}
               </dd>
             </div>
+            {selected.vendor && (
+              <div>
+                <dt>Vendor</dt>
+                <dd>{selected.vendor}</dd>
+              </div>
+            )}
           </dl>
           <Button
             variant="outline"
             className="lifecycle-request-button"
-            onClick={() => submitRequest(selected)}
-            {...restrictedAction(canEdit)}
+            onClick={() => void submitRequest(selected)}
+            {...restrictedAction(canRequest && !hasPending)}
           >
-            Ajukan Perpanjangan
+            {hasPending ? "Pengajuan sedang diproses" : "Ajukan Perpanjangan"}
           </Button>
         </GlassCard>
 
@@ -385,36 +502,13 @@ export default function LifecyclePage({
           {relatedRequests.length > 0 ? (
             <div className="request-list">
               {relatedRequests.map((request) => (
-                <div key={request.id}>
-                  <div>
-                    <strong className="type-body">{request.id}</strong>
-                    <span className="type-meta text-muted-foreground">
-                      {request.requestedBy} · {request.createdAt}
-                    </span>
-                  </div>
-                  <StatusBadge
-                    status={request.status}
-                    tone={requestTone(request.status)}
-                  />
-                  {request.status === "Menunggu" && canApprove && (
-                    <div className="request-list__actions">
-                      <Button
-                        variant="destructive-outline"
-                        size="sm"
-                        onClick={() => decideRequest(request, "Ditolak")}
-                      >
-                        Tolak
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => decideRequest(request, "Disetujui")}
-                      >
-                        Setujui
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  canApprove={canManage}
+                  onDecide={openDecide}
+                  showItem={false}
+                />
               ))}
             </div>
           ) : (
@@ -424,55 +518,46 @@ export default function LifecyclePage({
           )}
         </GlassCard>
 
-        {editing && (
-          <LifecycleEditDrawer
+        {form === "edit" && (
+          <LifecycleFormDrawer
             item={selected}
-            onClose={() => setEditing(false)}
-            onSave={(values) => {
-              if (
-                values.quantity <= 0 ||
-                values.allocated < 0 ||
-                values.allocated > values.quantity
-              ) {
-                return "Alokasi tidak boleh melebihi kuota."
+            title="Ubah siklus hidup"
+            onClose={() => setForm(null)}
+            onSave={async (values) => {
+              try {
+                await actions.updateLifecycle(selected.id, toInput(values, selected.type))
+                setToast("Siklus hidup berhasil diperbarui")
+                return null
+              } catch (e) {
+                return errorText(e, "Gagal menyimpan perubahan")
               }
-              if (!values.expiry) return "Tanggal expiry wajib diisi."
-              update(
-                "lifecycle",
-                (item) => item.id === selected.id,
-                values,
-              )
-              logAudit(
-                "Lifecycle diperbarui",
-                selected.id,
-                `Expiry ${values.expiry}, status ${values.status}`,
-              )
-              setToast("Lifecycle berhasil diperbarui")
-              return null
             }}
           />
         )}
-        <Toast
-          visible={Boolean(toast)}
-          message={toast}
-          onClose={() => setToast("")}
-        />
+        {decideDrawer}
+        {toastEl}
       </div>
     )
   }
 
-  const pending = requests.filter((request) => request.status === "Menunggu")
+  const pending = requests.filter(
+    (request) =>
+      request.status === "Menunggu" &&
+      items.some((item) => item.id === request.itemId),
+  )
 
   return (
     <div className="lifecycle-page">
-      <ScopeNotice>
-        Lisensi, sertifikat, garansi, dan kontrak tidak termasuk cakupan SYNRA. Data contoh ini hanya
-        tersimpan di browser.
-      </ScopeNotice>
       <GlassCard className="lifecycle-table">
-        <div className="section-heading">
-          <span className="type-label text-muted-foreground">LIFECYCLE</span>
-          <h3 className="type-card-title">{lifecycleCardTitles[name]}</h3>
+        <div className="section-heading flex items-start justify-between gap-4">
+          <div>
+            <span className="type-label text-muted-foreground">LIFECYCLE</span>
+            <h3 className="type-card-title">{lifecycleCardTitles[name]}</h3>
+          </div>
+          <Button onClick={() => setForm("create")} {...restrictedAction(canManage)}>
+            <Plus {...iconProps} />
+            Tambah
+          </Button>
         </div>
         {items.length > 0 ? (
           <DataTable
@@ -483,7 +568,7 @@ export default function LifecyclePage({
           />
         ) : (
           <p className="type-body text-muted-foreground">
-            Belum ada data lifecycle untuk kategori ini.
+            Belum ada data untuk kategori ini.
           </p>
         )}
       </GlassCard>
@@ -491,47 +576,41 @@ export default function LifecyclePage({
       {pending.length > 0 && (
         <GlassCard className="lifecycle-requests">
           <div className="section-heading">
-            <span className="type-label text-muted-foreground">ADMINISTRATOR</span>
+            <span className="type-label text-muted-foreground">PERSETUJUAN</span>
             <h3 className="type-card-title">Pengajuan Menunggu Persetujuan</h3>
           </div>
           <div className="request-list">
             {pending.map((request) => (
-              <div key={request.id}>
-                <div>
-                  <strong className="type-body">{request.itemName}</strong>
-                  <span className="type-meta text-muted-foreground">
-                    {request.id} · {request.requestedBy}
-                  </span>
-                </div>
-                <StatusBadge status={request.status} tone="warning" />
-                {canApprove && (
-                  <div className="request-list__actions">
-                    <Button
-                        variant="destructive-outline"
-                        size="sm"
-                        onClick={() => decideRequest(request, "Ditolak")}
-                      >
-                        Tolak
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => decideRequest(request, "Disetujui")}
-                      >
-                        Setujui
-                      </Button>
-                  </div>
-                )}
-              </div>
+              <RequestRow
+                key={request.id}
+                request={request}
+                canApprove={canManage}
+                onDecide={openDecide}
+                showItem
+              />
             ))}
           </div>
         </GlassCard>
       )}
-      <Toast
-        visible={Boolean(toast)}
-        message={toast}
-        onClose={() => setToast("")}
-      />
+
+      {form === "create" && (
+        <LifecycleFormDrawer
+          item={null}
+          title={`Tambah ${lifecycleCardTitles[name].replace(/^Daftar /, "").toLowerCase()}`}
+          onClose={() => setForm(null)}
+          onSave={async (values) => {
+            try {
+              await actions.createLifecycle(toInput(values, lifecycleType))
+              setToast("Item berhasil ditambahkan")
+              return null
+            } catch (e) {
+              return errorText(e, "Gagal menambahkan item")
+            }
+          }}
+        />
+      )}
+      {decideDrawer}
+      {toastEl}
     </div>
   )
 }

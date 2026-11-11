@@ -612,7 +612,7 @@ export default function App() {
       : detailRoute === "alert"
         ? selectedAlertId!
         : detailRoute === "lifecycle"
-          ? selectedLifecycleId!
+          ? (read("lifecycle").find((item) => item.id === selectedLifecycleId)?.code ?? selectedLifecycleId!)
           : active
   const pageEyebrow = detailRoute
     ? detailRouteConfig[detailRoute].eyebrow

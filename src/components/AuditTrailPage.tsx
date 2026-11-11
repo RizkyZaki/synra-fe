@@ -31,6 +31,18 @@ const iconProps = {
   "aria-hidden": true,
 } as const
 
+/** Tanggal (YYYY-MM-DD) dalam WIB. Waktu dari server dalam UTC, jadi aksi 00.00–06.59 WIB tidak boleh jatuh ke hari sebelumnya. */
+const jakartaFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+const jakartaDate = (iso: string) => {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : jakartaFormatter.format(d)
+}
+
 export default function AuditTrailPage() {
   const { read, actions: storeActions, error } = useSynraStore()
   const audit = read("audit")
@@ -47,7 +59,7 @@ export default function AuditTrailPage() {
     return [...audit]
       .filter(
         (entry) =>
-          (!date || entry.time.slice(0, 10) === date) &&
+          (!date || jakartaDate(entry.time) === date) &&
           (action === "Semua" || entry.action === action) &&
           (user === "Semua" || entry.user === user) &&
           (!query ||

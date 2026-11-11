@@ -52,7 +52,7 @@ type Tone = "good" | "warning" | "high" | "critical"
 
 /**
  * Kartu KPI. Aset/alert/stale/availability dari backend (/dashboard/summary, /dashboard/availability).
- * Lisensi masih dari data Lifecycle di FE (contoh) karena backend lisensi belum ada.
+ * Lisensi dari modul Siklus Hidup (/lifecycle).
  */
 function useKpiCards() {
   const { helpers, api, read } = useSynraStore()
@@ -62,7 +62,7 @@ function useKpiCards() {
 
   const licenses = read("lifecycle").filter((item) => item.type === "licenses")
   const activeLicenses = licenses.filter(
-    (item) => item.status === "Aktif" && helpers.daysUntil(item.expiry) >= 0,
+    (item) => (item.status === "Aktif" || item.status === "Renewed") && helpers.daysUntil(item.expiry) >= 0,
   )
   const expiring = activeLicenses
     .filter((item) => helpers.daysUntil(item.expiry) <= 30)

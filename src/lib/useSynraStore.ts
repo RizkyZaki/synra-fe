@@ -16,7 +16,6 @@ import {
   healthDimensions,
   lifecycleSeverity,
   roles,
-  seedAll,
   type SynraState,
 } from "./synraDomain"
 import {
@@ -35,6 +34,10 @@ import {
   type BackendRole,
   type AssetCategory,
   type HostDto,
+  type LifecycleCategoryDto,
+  type LifecycleItemDto,
+  type LifecycleStatusDto,
+  type RenewalDto,
   type SupervisorDto,
   type NotificationDto,
   type Paginated,
@@ -45,7 +48,9 @@ import {
   toAlert,
   toAsset,
   toAudit,
+  toLifecycle,
   toNotification,
+  toRenewal,
   toRules,
   toUser,
 } from "./backend"
@@ -53,24 +58,13 @@ import {
 export type SynraCollection = keyof SynraState
 export type SynraItem<K extends SynraCollection> = SynraState[K][number]
 
-// Hanya data Lifecycle (di luar cakupan backend pilot) yang tetap disimpan lokal.
-const LOCAL_KEY = "synra-local-state-v3"
 const REFRESH_MS = 60_000
+// Versi lama menyimpan data Lifecycle contoh di browser; sekarang semua dari backend.
+const LEGACY_LOCAL_KEY = "synra-local-state-v3"
 
-type LocalState = Pick<SynraState, "lifecycle" | "requests">
-
-function loadLocal(): LocalState {
-  const seeded = seedAll()
-  try {
-    const stored = localStorage.getItem(LOCAL_KEY)
-    if (stored) return JSON.parse(stored) as LocalState
-  } catch {
-    // Cache rusak: kembali ke data contoh.
-  }
-  return { lifecycle: seeded.lifecycle, requests: seeded.requests }
-}
-
-const emptyRemote = (): Omit<SynraState, "lifecycle" | "requests"> => ({
+const emptyRemote = (): SynraState => ({
+  lifecycle: [],
+  requests: [],
   assets: [],
   alerts: [],
   notifications: [],
@@ -101,6 +95,26 @@ export interface AssetInput {
   supervisorUpdateId?: string
 }
 
+export interface ThresholdLevelInput {
+  severity: string
+  operator?: "GT" | "GTE"
+  value: number
+  enabled?: boolean
+}
+
+export interface LifecycleInput {
+  name: string
+  category: LifecycleCategoryDto
+  status?: LifecycleStatusDto
+  expiryDate: string
+  quantity?: number
+  allocated?: number
+  location?: string
+  picName?: string
+  vendor?: string
+  notes?: string
+}
+
 export type AlertTransition = "acknowledge" | "start" | "submit-review" | "return" | "close"
 
 const seedHelpers = {
@@ -120,14 +134,6 @@ interface SynraStore {
   error: string
   refresh: () => Promise<void>
   read: <K extends SynraCollection>(collection: K) => SynraState[K]
-  /** Hanya untuk koleksi lokal (lifecycle, requests). Data lain diubah lewat `actions`. */
-  add: <K extends SynraCollection>(collection: K, item: SynraItem<K>) => void
-  update: <K extends SynraCollection>(
-    collection: K,
-    predicate: (item: SynraItem<K>) => boolean,
-    changes: Partial<SynraItem<K>>,
-  ) => void
-  reset: () => void
   actions: {
     createAsset: (input: AssetInput) => Promise<void>
     updateAsset: (apiId: string, input: Partial<AssetInput> & { isActive?: boolean }) => Promise<void>
@@ -137,6 +143,12 @@ interface SynraStore {
     updateUser: (id: string, input: { fullName?: string; role?: BackendRole; isActive?: boolean }) => Promise<void>
     unlockUser: (id: string) => Promise<void>
     updateRule: (id: string, value: number) => Promise<void>
+    /** Mengganti semua level satu metrik sekaligus, supaya urutan level divalidasi sebagai satu kesatuan. */
+    saveThresholds: (metric: string, levels: ThresholdLevelInput[]) => Promise<void>
+    createLifecycle: (input: LifecycleInput) => Promise<void>
+    updateLifecycle: (id: string, input: Partial<LifecycleInput>) => Promise<void>
+    requestRenewal: (itemId: string, note?: string) => Promise<void>
+    decideRenewal: (id: string, status: "APPROVED" | "REJECTED", input?: { note?: string; newExpiryDate?: string }) => Promise<void>
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>
     sendTestNotification: () => Promise<void>
     importCsv: (file: File) => Promise<{ inserted: number; invalidRows: number; errors: { row: number; message: string }[] }>
@@ -170,7 +182,6 @@ async function optional<T>(path: string): Promise<T | null> {
 }
 
 export function SynraStoreProvider({ children }: { children: ReactNode }) {
-  const [local, setLocal] = useState<LocalState>(loadLocal)
   const [remote, setRemote] = useState(emptyRemote)
   const [api, setApi] = useState<ApiData>({ summary: null, availability: null, hosts: [], supervisors: [], telegramConfigured: null })
   const [loading, setLoading] = useState(false)
@@ -178,15 +189,19 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false)
 
   useEffect(() => {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(local))
-  }, [local])
+    try {
+      localStorage.removeItem(LEGACY_LOCAL_KEY)
+    } catch {
+      // Storage tidak tersedia: tidak masalah.
+    }
+  }, [])
 
   const refresh = useCallback(async () => {
     if (!tokenStore.get() || inFlight.current) return
     inFlight.current = true
     setLoading(true)
     try {
-      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors] =
+      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors, lifecycle, renewals] =
         await Promise.all([
           apiFetch<Paginated<AssetDto>>("/assets?limit=100"),
           apiFetch<Paginated<AlertDto>>("/alerts?limit=100"),
@@ -199,8 +214,12 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
           optional<Paginated<UserDto>>("/users?limit=100"),
           optional<Paginated<AuditDto>>("/audit-logs?limit=100"),
           optional<SupervisorDto[]>("/users/supervisors"),
+          optional<Paginated<LifecycleItemDto>>("/lifecycle?limit=100"),
+          optional<Paginated<RenewalDto>>("/lifecycle/renewals?limit=100"),
         ])
       setRemote({
+        lifecycle: lifecycle?.data.map(toLifecycle) ?? [],
+        requests: renewals?.data.map(toRenewal) ?? [],
         assets: assets.data.map(toAsset),
         alerts: alerts.data.map(toAlert),
         rules: toRules(rules),
@@ -236,27 +255,8 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const store = useMemo<SynraStore>(() => {
-    const state: SynraState = { ...remote, ...local }
+    const state: SynraState = remote
     const read: SynraStore["read"] = (collection) => state[collection]
-    const isLocal = (c: SynraCollection): c is keyof LocalState => c === "lifecycle" || c === "requests"
-    const add: SynraStore["add"] = (collection, item) => {
-      if (!isLocal(collection)) return
-      setLocal((current) => ({ ...current, [collection]: [...current[collection], item] }))
-    }
-    const update: SynraStore["update"] = (collection, predicate, changes) => {
-      if (!isLocal(collection)) return
-      setLocal((current) => ({
-        ...current,
-        [collection]: (current[collection] as SynraItem<typeof collection>[]).map((item) =>
-          predicate(item as SynraItem<typeof collection>) ? { ...item, ...changes } : item,
-        ),
-      }))
-    }
-    const reset = () => {
-      const seeded = seedAll()
-      setLocal({ lifecycle: seeded.lifecycle, requests: seeded.requests })
-      void refresh()
-    }
 
     // Setiap aksi tulis memanggil API lalu memuat ulang data.
     const mutate = async <T,>(path: string, method: string, body?: unknown): Promise<T> => {
@@ -274,6 +274,11 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
       updateUser: (id, input) => mutate(`/users/${id}`, "PATCH", input),
       unlockUser: (id) => mutate(`/users/${id}/unlock`, "POST"),
       updateRule: (id, value) => mutate(`/thresholds/rule/${id}`, "PATCH", { value }),
+      saveThresholds: (metric, levels) => mutate(`/thresholds/${metric}`, "PUT", { levels }),
+      createLifecycle: (input) => mutate("/lifecycle", "POST", input),
+      updateLifecycle: (id, input) => mutate(`/lifecycle/${id}`, "PATCH", input),
+      requestRenewal: (itemId, note) => mutate(`/lifecycle/${itemId}/renewals`, "POST", { note }),
+      decideRenewal: (id, status, input = {}) => mutate(`/lifecycle/renewals/${id}`, "PATCH", { status, ...input }),
       changePassword: (oldPassword, newPassword) =>
         apiFetch("/auth/change-password", { method: "POST", body: JSON.stringify({ oldPassword, newPassword }) }),
       sendTestNotification: () => mutate("/notifications/test", "POST"),
@@ -320,8 +325,8 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
         }))
       },
     }
-    return { state, api, loading, error, refresh, read, add, update, reset, actions, helpers }
-  }, [remote, local, api, loading, error, refresh])
+    return { state, api, loading, error, refresh, read, actions, helpers }
+  }, [remote, api, loading, error, refresh])
 
   return createElement(SynraStoreContext.Provider, { value: store }, children)
 }

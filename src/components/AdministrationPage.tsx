@@ -147,13 +147,33 @@ function EwsParameters() {
       setToast("Nilai parameter harus berupa angka nol atau lebih")
       return
     }
+    // Simpan per metrik sekaligus (PUT), supaya menaikkan beberapa level bersamaan
+    // tidak ditolak karena urutan sementara yang belum lengkap.
+    const metrics = [...new Set(changed.map((rule) => rule.metric!))]
     setSaving(true)
+    let saved = 0
     try {
-      for (const rule of changed) await actions.updateRule(rule.id!, draft[rule.id!])
-      setDraft({})
-      setToast(`${changed.length} parameter berhasil disimpan`)
+      for (const metric of metrics) {
+        const levels = rules
+          .filter((rule) => rule.metric === metric)
+          .map((rule) => ({
+            severity: rule.severity!,
+            operator: rule.operator,
+            value: valueOf(rule),
+            enabled: rule.enabled,
+          }))
+        await actions.saveThresholds(metric, levels)
+        saved += changed.filter((rule) => rule.metric === metric).length
+        setDraft((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([id]) => !rules.some((rule) => rule.id === id && rule.metric === metric)),
+          ),
+        )
+      }
+      setToast(`${saved} parameter berhasil disimpan`)
     } catch (e) {
-      setToast(errorText(e, "Gagal menyimpan parameter"))
+      const message = errorText(e, "Gagal menyimpan parameter")
+      setToast(saved > 0 ? `${saved} parameter tersimpan, sisanya gagal: ${message}` : message)
     } finally {
       setSaving(false)
     }
@@ -168,6 +188,12 @@ function EwsParameters() {
           <p className="type-meta text-muted-foreground mt-1">
             Nilai level satu metrik harus naik sesuai urutan severity (Warning &lt; Medium &lt; High &lt; Critical).
           </p>
+          {!canConfig && (
+            <p className="type-meta mt-2 text-[var(--status-warning)]" role="note">
+              Hanya akun Administrator yang dapat mengubah threshold. Anda masuk sebagai role lain, jadi nilai di
+              bawah hanya bisa dilihat.
+            </p>
+          )}
         </div>
         <div className="ews-grid">
           {rules.map((rule) => (
