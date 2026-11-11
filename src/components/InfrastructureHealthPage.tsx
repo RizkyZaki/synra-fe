@@ -1,4 +1,3 @@
-import { HeartPulse } from "lucide-react"
 import { motion } from "motion/react"
 import { CardHeading, GlassCard, ScopeNotice, StatusBadge } from "./ui"
 import { cn } from "@/lib/utils"
@@ -63,7 +62,7 @@ export default function InfrastructureHealthPage() {
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
-          <CardHeading icon={HeartPulse} title="Rincian Kesehatan Infrastruktur" description="7 dimensi berbobot" />
+          <CardHeading title="Rincian Kesehatan Infrastruktur" description="7 dimensi berbobot" />
           <ul className="flex flex-col gap-4">
             {healthDimensions.map((dimension, index) => (
               <li key={dimension.name} className="min-w-0">

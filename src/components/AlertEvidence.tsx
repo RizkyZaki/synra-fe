@@ -1,4 +1,4 @@
-import { FileImage, FileText, Paperclip, ShieldCheck, Upload } from "lucide-react"
+import { FileImage, FileText, ShieldCheck, Upload } from "lucide-react"
 import { useRef, useState } from "react"
 import { ApiError, apiFetch, apiOpenFile } from "../lib/api"
 import { type AlertAttachmentDto, formatBytes, formatDateTime } from "../lib/backend"
@@ -64,7 +64,6 @@ export function AlertEvidence({
   return (
     <GlassCard className="min-w-0 p-5 md:p-6">
       <CardHeading
-        icon={Paperclip}
         title="Bukti Remediasi"
         description={attachments.length ? `${attachments.length} lampiran` : "Screenshot, log, atau dokumen hasil perbaikan"}
         className="mb-4"

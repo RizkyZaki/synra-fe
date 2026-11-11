@@ -1,4 +1,4 @@
-import { KeyRound, Lock, Plus, Save, SlidersHorizontal, UserRound, Users } from "lucide-react"
+import { Lock, Plus, Save, SlidersHorizontal, UserRound, Users } from "lucide-react"
 import { motion } from "motion/react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
@@ -198,7 +198,6 @@ function EwsParameters() {
     <>
       <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
         <CardHeading
-          icon={SlidersHorizontal}
           title={`Threshold Alert (${rules.length} level)`}
           description="Nilai level satu metrik harus naik sesuai urutan severity (Warning < Medium < High < Critical)."
           actions={
@@ -341,7 +340,6 @@ function UsersAdministration() {
     <>
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5 md:p-6">
         <CardHeading
-          icon={Users}
           title="Pengguna"
           description={`${users.length} akun terdaftar`}
           actions={
@@ -397,7 +395,7 @@ function ProfileAdministration() {
     <>
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
-          <CardHeading icon={UserRound} title="Profil" description={`@${user.username} · ${user.role}`} />
+          <CardHeading title="Profil" description={`@${user.username} · ${user.role}`} />
           <FormField label="Nama">
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </FormField>
@@ -408,7 +406,7 @@ function ProfileAdministration() {
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
-          <CardHeading icon={KeyRound} title="Kata Sandi" description="Ganti kata sandi akun ini" />
+          <CardHeading title="Kata Sandi" description="Ganti kata sandi akun ini" />
           <FormField label="Kata sandi lama">
             <Input
               type="password"

@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Boxes, CheckCircle2, History, MapPin, ShieldAlert, TrendingUp } from "lucide-react"
+import { ArrowRight, CheckCircle2 } from "lucide-react"
 import { motion } from "motion/react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useAccess } from "../lib/useAccess"
@@ -211,7 +211,6 @@ function UtilizationChart() {
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-8">
       <CardHeading
-        icon={TrendingUp}
         title="Utilisasi CPU / Memori / Disk"
         description="Rata-rata seluruh host yang aktif"
         actions={
@@ -408,7 +407,6 @@ function InsightPanel({ onNavigate }: { onNavigate: (page: string) => void }) {
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-4">
       <CardHeading
-        icon={ShieldAlert}
         title="Prioritas Hari Ini"
         description={`${priorityAlerts.length} alert aktif`}
         actions={
@@ -467,7 +465,7 @@ function AssetDistribution() {
 
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-5 p-5 md:col-span-6 xl:col-span-4">
-      <CardHeading icon={Boxes} title="Distribusi Aset" description="Per jenis perangkat" />
+      <CardHeading title="Distribusi Aset" description="Per jenis perangkat" />
       <div className="flex flex-col items-center gap-6 sm:flex-row xl:flex-col 2xl:flex-row">
         <div className="relative size-40 shrink-0">
           <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-label="Distribusi aset">
@@ -529,7 +527,7 @@ function AvailabilityBreakdown() {
 
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 md:col-span-6 xl:col-span-4">
-      <CardHeading icon={Activity} title="Availability per Aset" description="24 jam terakhir, terendah di atas" />
+      <CardHeading title="Availability per Aset" description="24 jam terakhir, terendah di atas" />
       <div className="flex max-h-[300px] flex-col gap-3.5 overflow-y-auto pr-1">
         {rows.length === 0 && <p className="type-meta">Belum ada data.</p>}
         {rows.map((row, index) => (
@@ -565,7 +563,7 @@ function RecentActivity() {
 
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5 xl:col-span-4">
-      <CardHeading icon={History} title="Aktivitas Terbaru" description="Dari audit trail" />
+      <CardHeading title="Aktivitas Terbaru" description="Dari audit trail" />
       {entries.length === 0 ? (
         <p className="type-meta">Belum ada aktivitas.</p>
       ) : (
@@ -596,7 +594,7 @@ function LocationStatus() {
 
   return (
     <GlassCard className="col-span-12 flex min-w-0 flex-col gap-4 p-5">
-      <CardHeading icon={MapPin} title="Status per Host" description={`${hosts.length} host terpantau`} />
+      <CardHeading title="Status per Host" description={`${hosts.length} host terpantau`} />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
         {hosts.map((host) => {
           const hostAssets = assets.filter((asset) => asset.location === host)

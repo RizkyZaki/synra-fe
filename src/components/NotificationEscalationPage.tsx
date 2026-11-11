@@ -1,4 +1,4 @@
-﻿import { CircleCheck, CircleDashed, History, Send } from "lucide-react"
+﻿import { CircleCheck, CircleDashed, Send } from "lucide-react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
@@ -19,15 +19,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { SpotlightCard } from "@/components/aceternity/spotlight-card"
 import { cn } from "@/lib/utils"
-
-/** Ikon Telegram sederhana (pesawat kertas). */
-function TelegramMark() {
-  return (
-    <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#37aee2] to-[#1e96c8] text-white shadow-[0_8px_24px_-8px_rgb(55_174_226/70%)]">
-      <Send size={20} className="-translate-x-px translate-y-px" />
-    </span>
-  )
-}
 
 export default function NotificationEscalationPage() {
   const { read, actions, api, error } = useSynraStore()
@@ -79,7 +70,6 @@ export default function NotificationEscalationPage() {
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SpotlightCard className="p-5 md:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <TelegramMark />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="type-card-title">Notifikasi Telegram</h3>
@@ -126,7 +116,7 @@ export default function NotificationEscalationPage() {
       <EscalationMatrix />
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={History} title="Riwayat Notifikasi" description={`${notifications.length} notifikasi`} />
+        <CardHeading title="Riwayat Notifikasi" description={`${notifications.length} notifikasi`} />
         {notifications.length === 0 ? (
           <p className="type-meta">Belum ada notifikasi.</p>
         ) : (

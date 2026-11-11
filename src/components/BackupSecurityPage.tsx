@@ -1,16 +1,8 @@
 import {
-  Archive,
-  BadgeCheck,
-  Cpu,
   DatabaseBackup,
-  History,
-  KeyRound,
   Lock,
   RefreshCw,
   Search,
-  ServerOff,
-  ShieldAlert,
-  UserX,
 } from "lucide-react"
 import { motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
@@ -98,20 +90,15 @@ function Stat({
   value,
   hint,
   tone,
-  icon: Icon,
 }: {
   label: string
   value: string | number
   hint?: string
   tone?: "danger" | "warning" | "success"
-  icon: typeof Archive
 }) {
   return (
     <GlassCard className="flex min-w-0 flex-col gap-2 p-4 md:p-5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="type-label truncate text-muted-foreground">{label}</span>
-        <Icon size={16} className={cn("shrink-0 text-muted-foreground", tone && TONE_TEXT[tone])} aria-hidden="true" />
-      </div>
+      <span className="type-label truncate text-muted-foreground">{label}</span>
       <NumberTicker
         value={String(value)}
         className={cn(
@@ -124,17 +111,12 @@ function Stat({
   )
 }
 
-function SectionTitle({ icon: Icon, title, description, actions }: { icon: typeof Archive; title: string; description: string; actions?: ReactNode }) {
+function SectionTitle({ title, description, actions }: { title: string; description: string; actions?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
-          <Icon size={18} />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-          <p className="type-meta">{description}</p>
-        </div>
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <p className="type-meta">{description}</p>
       </div>
       {actions}
     </div>
@@ -215,21 +197,19 @@ function BackupSection() {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
-        <Stat label="Job berhasil" value={`${s.ok}/${s.jobs}`} hint={`${s.runs24h.success} eksekusi sukses · 24 jam`} icon={DatabaseBackup} />
-        <Stat label="Gagal" value={s.failed} hint={`${s.runs24h.failed} eksekusi gagal · 24 jam`} tone="danger" icon={ShieldAlert} />
-        <Stat label="Terlambat" value={s.overdue} hint={`Tanpa sukses > ${s.overdueAfterHours} jam`} tone="warning" icon={History} />
+        <Stat label="Job berhasil" value={`${s.ok}/${s.jobs}`} hint={`${s.runs24h.success} eksekusi sukses · 24 jam`} />
+        <Stat label="Gagal" value={s.failed} hint={`${s.runs24h.failed} eksekusi gagal · 24 jam`} tone="danger" />
+        <Stat label="Terlambat" value={s.overdue} hint={`Tanpa sukses > ${s.overdueAfterHours} jam`} tone="warning" />
         <Stat
           label="Cakupan aset"
           value={`${s.assetsCovered}/${s.assetsTotal}`}
           hint={`${formatBytes(s.bytes24h)} dicadangkan · 24 jam`}
           tone={s.assetsCovered < s.assetsTotal ? "warning" : undefined}
-          icon={Archive}
         />
       </div>
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
         <CardHeading
-          icon={DatabaseBackup}
           title="Job Backup"
           description={s.lastRunAt ? `Eksekusi terakhir ${relativeTime(s.lastRunAt)} · disegarkan tiap menit` : "Belum ada laporan backup"}
           actions={
@@ -309,7 +289,6 @@ function BackupSection() {
       {data.uncovered.length > 0 && (
         <GlassCard className="flex min-w-0 flex-col gap-3 p-5">
           <CardHeading
-            icon={ServerOff}
             title="Aset Tanpa Backup"
             description={`${data.uncovered.length} aset aktif belum melaporkan job backup apa pun dalam 30 hari`}
           />
@@ -388,10 +367,10 @@ function BackupRunsDrawer({ job, onClose }: { job: BackupJobDto | null; onClose:
 
 // ── Keamanan ─────────────────────────────────────────────────────────────────
 
-function ListCard({ icon, title, description, empty, children }: { icon: typeof Archive; title: string; description: string; empty: boolean; children: ReactNode }) {
+function ListCard({ title, description, empty, children }: { title: string; description: string; empty: boolean; children: ReactNode }) {
   return (
     <GlassCard className="flex min-w-0 flex-col gap-3 p-5">
-      <CardHeading icon={icon} title={title} description={description} />
+      <CardHeading title={title} description={description} />
       {empty ? <p className="type-meta">Tidak ada.</p> : <ul className="flex flex-col divide-y divide-border">{children}</ul>}
     </GlassCard>
   )
@@ -423,28 +402,26 @@ function SecuritySection() {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
-        <Stat label="Login gagal 24 jam" value={s.failedLogins24h} hint={`${s.failedLogins7d} dalam 7 hari`} tone="warning" icon={KeyRound} />
-        <Stat label="Akun terkunci" value={s.lockedAccounts} hint={`${s.activeUsers} akun aktif · ${s.admins} admin`} tone="danger" icon={Lock} />
-        <Stat label="Akun tidak aktif" value={s.dormantAccounts} hint={`Tidak login > ${s.dormantAfterDays} hari`} tone="warning" icon={UserX} />
+        <Stat label="Login gagal 24 jam" value={s.failedLogins24h} hint={`${s.failedLogins7d} dalam 7 hari`} tone="warning" />
+        <Stat label="Akun terkunci" value={s.lockedAccounts} hint={`${s.activeUsers} akun aktif · ${s.admins} admin`} tone="danger" />
+        <Stat label="Akun tidak aktif" value={s.dormantAccounts} hint={`Tidak login > ${s.dormantAfterDays} hari`} tone="warning" />
         <Stat
           label="Sertifikat ≤ 30 hari"
           value={s.certificatesExpiring + s.certificatesExpired}
           hint={s.certificatesExpired ? `${s.certificatesExpired} sudah kedaluwarsa` : "SSL/TLS dari modul siklus hidup"}
           tone="danger"
-          icon={BadgeCheck}
         />
         <Stat
           label="OS habis dukungan"
           value={s.osEndOfSupport}
           hint={`${s.osEndingSoon} lagi dalam 90 hari`}
           tone="danger"
-          icon={Cpu}
         />
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-          <CardHeading icon={KeyRound} title="Percobaan Login Gagal" description="Per jam, 24 jam terakhir" />
+          <CardHeading title="Percobaan Login Gagal" description="Per jam, 24 jam terakhir" />
           <div className="flex h-28 items-end gap-[3px]" role="img" aria-label={`${s.failedLogins24h} login gagal dalam 24 jam`}>
             {data.failedLogins.perHour.map((h, i) => (
               <motion.div
@@ -481,7 +458,7 @@ function SecuritySection() {
           </div>
         </GlassCard>
 
-        <ListCard icon={History} title="Perubahan Sensitif" description="Hak akses dan konfigurasi, terbaru" empty={data.sensitiveChanges.length === 0}>
+        <ListCard title="Perubahan Sensitif" description="Hak akses dan konfigurasi, terbaru" empty={data.sensitiveChanges.length === 0}>
           {data.sensitiveChanges.map((c) => (
             <Row
               key={c.id}
@@ -494,22 +471,22 @@ function SecuritySection() {
       </div>
 
       <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ListCard icon={BadgeCheck} title="Sertifikat SSL/TLS" description="Berakhir ≤ 30 hari" empty={data.certificates.length === 0}>
+        <ListCard title="Sertifikat SSL/TLS" description="Berakhir ≤ 30 hari" empty={data.certificates.length === 0}>
           {data.certificates.map((c) => (
             <Row key={c.id} title={c.name} meta={`${c.code}${c.location ? ` · ${c.location}` : ""}`} right={days(c.daysLeft)} tone={c.daysLeft < 0 ? "danger" : "warning"} />
           ))}
         </ListCard>
-        <ListCard icon={Cpu} title="Sistem Operasi" description="Habis dukungan ≤ 90 hari" empty={data.operatingSystems.length === 0}>
+        <ListCard title="Sistem Operasi" description="Habis dukungan ≤ 90 hari" empty={data.operatingSystems.length === 0}>
           {data.operatingSystems.map((o) => (
             <Row key={o.id} title={o.name} meta={`${o.quantity} unit${o.location ? ` · ${o.location}` : ""}`} right={days(o.daysLeft)} tone={o.daysLeft < 0 ? "danger" : "warning"} />
           ))}
         </ListCard>
-        <ListCard icon={Lock} title="Akun Terkunci" description="Terlalu banyak login gagal" empty={data.lockedAccounts.length === 0}>
+        <ListCard title="Akun Terkunci" description="Terlalu banyak login gagal" empty={data.lockedAccounts.length === 0}>
           {data.lockedAccounts.map((u) => (
             <Row key={u.id} title={u.username} meta={`${u.fullName} · ${u.role}`} right={`s.d. ${new Date(u.lockedUntil).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`} tone="danger" />
           ))}
         </ListCard>
-        <ListCard icon={UserX} title="Akun Tidak Aktif" description={`Tidak login > ${s.dormantAfterDays} hari`} empty={data.dormantAccounts.length === 0}>
+        <ListCard title="Akun Tidak Aktif" description={`Tidak login > ${s.dormantAfterDays} hari`} empty={data.dormantAccounts.length === 0}>
           {data.dormantAccounts.map((u) => (
             <Row key={u.id} title={u.username} meta={`${u.fullName} · ${u.role}`} right={u.lastLoginAt ? relativeTime(u.lastLoginAt) : "Belum pernah"} tone="warning" />
           ))}
@@ -525,11 +502,11 @@ export default function BackupSecurityPage() {
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <section className="flex min-w-0 flex-col gap-4">
-        <SectionTitle icon={DatabaseBackup} title="Pencadangan" description="Hasil job backup dari setiap server, dikirim Filebeat" />
+        <SectionTitle title="Pencadangan" description="Hasil job backup dari setiap server, dikirim Filebeat" />
         <BackupSection />
       </section>
       <section className="flex min-w-0 flex-col gap-4">
-        <SectionTitle icon={ShieldAlert} title="Keamanan" description="Akses pengguna, sertifikat, OS, dan perubahan sensitif" />
+        <SectionTitle title="Keamanan" description="Akses pengguna, sertifikat, OS, dan perubahan sensitif" />
         {canSeeSecurity ? (
           <SecuritySection />
         ) : (

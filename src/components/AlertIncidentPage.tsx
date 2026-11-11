@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardCheck, Gauge, ListChecks, Radar, Workflow } from "lucide-react"
+import { CheckCircle2, ClipboardCheck, Radar } from "lucide-react"
 import { motion } from "motion/react"
 import { useMemo, useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
@@ -113,7 +113,7 @@ function AlertFunnel({ active, onSelect }: { active: string; onSelect: (status: 
   const max = Math.max(1, ...funnel.map((stage) => stage.count))
   return (
     <GlassCard className="min-w-0 p-4 md:p-5">
-      <CardHeading icon={Gauge} title="Tahap Alert" description="Klik tahap untuk memfilter tabel" className="mb-4" />
+      <CardHeading title="Tahap Alert" description="Klik tahap untuk memfilter tabel" className="mb-4" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {funnel.map((stage, index) => {
           const selectedStage = active === stage.status
@@ -128,11 +128,10 @@ function AlertFunnel({ active, onSelect }: { active: string; onSelect: (status: 
                 selectedStage ? "border-primary/50 bg-primary/10" : "border-border bg-muted/40 hover:border-primary/30",
               )}
             >
-              <span className="type-label block text-muted-foreground">Tahap {index + 1}</span>
-              <span className="mt-2 block text-2xl font-semibold tabular-nums">{stage.count}</span>
-              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              <span className="type-label block truncate text-muted-foreground">
                 {statusLabels[stage.status as AlertStatus] ?? stage.status}
               </span>
+              <span className="mt-2 block text-2xl font-semibold tabular-nums">{stage.count}</span>
               <span className="mt-3 block h-1 overflow-hidden rounded-full bg-muted">
                 <motion.span
                   className="block h-full rounded-full bg-primary"
@@ -311,7 +310,7 @@ export default function AlertIncidentPage({
             />
           )}
           <GlassCard className="min-w-0 p-5 md:p-6">
-            <CardHeading icon={ListChecks} title="Riwayat Penanganan" description="Timeline perubahan status" className="mb-5" />
+            <CardHeading title="Riwayat Penanganan" description="Timeline perubahan status" className="mb-5" />
             {events.length === 0 ? (
               <p className="type-meta">Belum ada riwayat.</p>
             ) : (
@@ -347,7 +346,7 @@ export default function AlertIncidentPage({
           </div>
 
           <GlassCard className="min-w-0 self-start p-5 md:p-6">
-            <CardHeading icon={Workflow} title="Alur Status" description="Tindakan sesuai tahap saat ini" className="mb-5" />
+            <CardHeading title="Alur Status" description="Tindakan sesuai tahap saat ini" className="mb-5" />
             <ol className="mb-6 flex flex-col">
               {statusFlow.map((status, index) => {
                 const done = index < currentStep

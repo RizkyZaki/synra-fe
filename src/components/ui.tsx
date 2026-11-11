@@ -3,7 +3,7 @@
  * Nama export dan kontrak props publik dipertahankan.
  */
 
-import { AlertTriangle, ArrowLeft, ArrowUpRight, Eye, Inbox, type LucideIcon, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, Eye, Inbox, type LucideIcon, X } from "lucide-react"
 import {
   type ComponentProps,
   type ReactNode,
@@ -52,28 +52,19 @@ export function GlassCard({ className = "", children, ...props }: ComponentProps
 export function CardHeading({
   title,
   description,
-  icon: Icon,
   actions,
   className,
 }: {
   title: ReactNode
   description?: ReactNode
-  icon?: LucideIcon
   actions?: ReactNode
   className?: string
 }) {
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
-      <div className="flex min-w-0 items-start gap-3">
-        {Icon && (
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-muted text-primary">
-            <Icon size={17} strokeWidth={1.75} aria-hidden="true" />
-          </span>
-        )}
-        <div className="min-w-0">
-          <h3 className="type-card-title">{title}</h3>
-          {description && <p className="type-meta mt-0.5">{description}</p>}
-        </div>
+      <div className="min-w-0">
+        <h3 className="type-card-title">{title}</h3>
+        {description && <p className="type-meta mt-0.5">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
@@ -244,14 +235,7 @@ export function KpiCard({
         )}
       />
       <div className="flex h-full flex-col gap-3 p-5">
-        <div className="flex items-start justify-between gap-2">
-          <span className="type-label text-muted-foreground">{label}</span>
-          <ArrowUpRight
-            size={16}
-            className="shrink-0 text-muted-foreground transition-all group-hover/spot:-translate-y-0.5 group-hover/spot:translate-x-0.5 group-hover/spot:text-primary"
-            aria-hidden="true"
-          />
-        </div>
+        <span className="type-label text-muted-foreground">{label}</span>
         <div className="flex items-baseline gap-2">
           <NumberTicker value={value} className="text-[32px] font-semibold leading-none tracking-tight" />
           {tag && <span className="type-meta">{tag}</span>}

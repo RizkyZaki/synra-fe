@@ -1,4 +1,4 @@
-import { ArrowRight, Clock, Layers, Pencil, Plus, Siren, Trash2 } from "lucide-react"
+import { ArrowRight, Clock, Pencil, Plus, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { ApiError, apiFetch } from "../lib/api"
 import {
@@ -146,7 +146,6 @@ export function EscalationMatrix({ onOpenAlert }: { onOpenAlert?: (code: string)
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
         <CardHeading
-          icon={Layers}
           title="Matriks Eskalasi"
           description="Diperiksa setiap menit. Alert yang belum ditutup naik tingkat sesuai waktu sejak terdeteksi."
         />
@@ -206,7 +205,7 @@ export function EscalationMatrix({ onOpenAlert }: { onOpenAlert?: (code: string)
       </GlassCard>
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={Siren} title="Eskalasi Berjalan" description="Alert terbuka, yang melewati SLA ditampilkan paling atas" />
+        <CardHeading title="Eskalasi Berjalan" description="Alert terbuka, yang melewati SLA ditampilkan paling atas" />
         {active.items.length === 0 ? (
           <EmptyState icon={Clock} title="Tidak ada alert terbuka" description="Semua alert sudah ditutup." />
         ) : (

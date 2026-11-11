@@ -1,4 +1,4 @@
-﻿import { CalendarClock, Check, ClipboardList, Pencil, Plus, RefreshCw, X } from "lucide-react"
+﻿import { CalendarClock, Check, Pencil, Plus, RefreshCw, X } from "lucide-react"
 import { motion } from "motion/react"
 import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
@@ -513,7 +513,7 @@ export default function LifecyclePage({
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-4 p-5 md:p-6">
-          <CardHeading icon={ClipboardList} title="Pengajuan Perpanjangan" description={`${relatedRequests.length} pengajuan`} />
+          <CardHeading title="Pengajuan Perpanjangan" description={`${relatedRequests.length} pengajuan`} />
           {relatedRequests.length > 0 ? (
             <div className="flex flex-col gap-2">
               {relatedRequests.map((request) => (
@@ -584,7 +584,6 @@ export default function LifecyclePage({
       {pending.length > 0 && (
         <GlassCard className="flex min-w-0 flex-col gap-4 border-warning/30 p-5 md:p-6">
           <CardHeading
-            icon={ClipboardList}
             title="Pengajuan Menunggu Persetujuan"
             description={canManage ? "Setujui dengan tanggal berakhir baru atau tolak" : "Menunggu keputusan Supervisor/Administrator"}
           />
@@ -598,7 +597,6 @@ export default function LifecyclePage({
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
         <CardHeading
-          icon={CalendarClock}
           title={lifecycleCardTitles[name]}
           description={`${items.length} item, urut dari yang paling cepat berakhir`}
           actions={

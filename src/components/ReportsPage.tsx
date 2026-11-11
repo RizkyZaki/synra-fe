@@ -1,4 +1,4 @@
-import { BarChart3, Download, FileSpreadsheet, Printer, Server, Siren } from "lucide-react"
+import { Download, FileSpreadsheet, Printer } from "lucide-react"
 import { motion } from "motion/react"
 import { useEffect, useState } from "react"
 import { NumberTicker } from "@/components/aceternity/number-ticker"
@@ -208,7 +208,7 @@ export default function ReportsPage() {
       </div>
 
       <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
-        <CardHeading icon={BarChart3} title="Alert Terdeteksi per Severity" />
+        <CardHeading title="Alert Terdeteksi per Severity" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           {severityKeys.map((severity, index) => {
             const count = s?.detectedBySeverity[severity] ?? 0
@@ -233,12 +233,12 @@ export default function ReportsPage() {
       </GlassCard>
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={Server} title="Statistik per Aset" description={`${report?.assets.length ?? 0} aset`} />
+        <CardHeading title="Statistik per Aset" description={`${report?.assets.length ?? 0} aset`} />
         <DataTable columns={assetColumns} rows={report?.assets ?? []} rowKey={(a) => a.hostname} />
       </GlassCard>
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={Siren} title="Alert pada Tanggal Ini" description={`${report?.alerts.length ?? 0} alert`} />
+        <CardHeading title="Alert pada Tanggal Ini" description={`${report?.alerts.length ?? 0} alert`} />
         {report && report.alerts.length === 0 ? (
           <p className="type-meta">Tidak ada alert yang terdeteksi pada tanggal ini.</p>
         ) : (

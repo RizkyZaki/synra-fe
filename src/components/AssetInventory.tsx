@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Bell, Download, Gauge, HardDrive, Pencil, Plus, Search } from "lucide-react"
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Download, Pencil, Plus, Search } from "lucide-react"
 import { motion } from "motion/react"
 import { type ReactNode, useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
@@ -366,7 +366,7 @@ function AssetDetail({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
 
       <div className="grid min-w-0 gap-6 md:grid-cols-2 xl:grid-cols-3">
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
-          <CardHeading icon={Gauge} title="Utilisasi Saat Ini" description="Nilai metrik terbaru" />
+          <CardHeading title="Utilisasi Saat Ini" description="Nilai metrik terbaru" />
           <div className="flex flex-col gap-4">
             <MetricBar label="CPU" value={asset.cpu} />
             <MetricBar label="Memori" value={asset.memory} />
@@ -375,7 +375,7 @@ function AssetDetail({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
-          <CardHeading icon={HardDrive} title="Mount Point" description={`Uptime ${formatUptime(asset.uptimeMs)}`} />
+          <CardHeading title="Mount Point" description={`Uptime ${formatUptime(asset.uptimeMs)}`} />
           <div className="flex flex-col gap-4">
             {(asset.disks ?? []).map((disk) => (
               <MetricBar key={disk.mountPoint} label={disk.mountPoint} value={disk.value} />
@@ -388,7 +388,7 @@ function AssetDetail({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:col-span-2 xl:col-span-1">
-          <CardHeading icon={Bell} title="Riwayat Alert" description={`${history.length} alert tercatat`} />
+          <CardHeading title="Riwayat Alert" description={`${history.length} alert tercatat`} />
           {history.length > 0 ? (
             <ul className="flex max-h-[320px] flex-col gap-2 overflow-y-auto">
               {history.map((alert) => (

@@ -1,4 +1,3 @@
-import { Activity, BarChart3, HardDrive, Server } from "lucide-react"
 import { motion } from "motion/react"
 import { useMemo } from "react"
 import { useSynraStore } from "../lib/useSynraStore"
@@ -44,7 +43,6 @@ function ComparisonChart({ assets }: { assets: Asset[] }) {
   return (
     <GlassCard className="flex min-w-0 flex-col gap-5 p-5">
       <CardHeading
-        icon={BarChart3}
         title="Perbandingan Metrik Aset"
         description="Utilisasi terbaru per aset"
         actions={
@@ -129,7 +127,7 @@ function DiskByMount({ assets }: { assets: Asset[] }) {
   ]
   return (
     <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-      <CardHeading icon={HardDrive} title="Pemakaian per Mount Point" description="Urut dari yang paling penuh" />
+      <CardHeading title="Pemakaian per Mount Point" description="Urut dari yang paling penuh" />
       {rows.length === 0 ? (
         <p className="type-meta">Belum ada data disk.</p>
       ) : (
@@ -170,7 +168,6 @@ function AvailabilityTable() {
   return (
     <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
       <CardHeading
-        icon={Activity}
         title="Availability 24 Jam"
         description={
           api.availability?.averagePct != null
@@ -251,7 +248,7 @@ export default function MonitoringPage({ name }: { name: MonitoringName }) {
       {name === "Availability & Performa" && <AvailabilityTable />}
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={Server} title="Aset Terkait" description={`${relevant.length} aset pada kategori ini`} />
+        <CardHeading title="Aset Terkait" description={`${relevant.length} aset pada kategori ini`} />
         {relevant.length > 0 ? (
           <DataTable columns={columns} rows={relevant} rowKey={(asset) => asset.id} rowSeverity={(asset) => asset.severity} />
         ) : (
