@@ -20,7 +20,7 @@ export type BackendAlertStatus =
   | "IN_PROGRESS"
   | "PENDING_REVIEW"
   | "CLOSED"
-export type RuleMetric = "CPU" | "MEMORY" | "DISK" | "HOST_STALE"
+export type RuleMetric = "CPU" | "MEMORY" | "DISK" | "HOST_STALE" | "BACKUP_FAILED" | "BACKUP_AGE"
 
 export interface Paginated<T> {
   data: T[]
@@ -104,6 +104,7 @@ export interface AlertDto {
   recoveredAt: string | null
   closedAt: string | null
   closeNote: string | null
+  escalationLevel?: number
 }
 
 export interface AlertEventDto {
@@ -117,8 +118,176 @@ export interface AlertEventDto {
   createdAt: string
 }
 
+export interface AlertAttachmentDto {
+  id: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  sha256: string
+  uploadedByName: string
+  createdAt: string
+}
+
 export interface AlertDetailDto extends AlertDto {
   events: AlertEventDto[]
+  attachments: AlertAttachmentDto[]
+}
+
+// ── Backup ──────────────────────────────────────────────────────────────────
+export type BackupHealth = "OK" | "FAILED" | "OVERDUE"
+
+export interface BackupJobDto {
+  assetId: string
+  jobName: string
+  type: string
+  lastStatus: "SUCCESS" | "FAILED"
+  lastRunAt: string
+  lastSuccessAt: string | null
+  consecutiveFailures: number
+  lastMessage: string | null
+  lastSizeBytes: number | null
+  lastDurationSec: number | null
+  target: string | null
+  ageHours: number
+  health: BackupHealth
+  asset: { id: string; hostname: string; ipAddress: string; component: string; isStale: boolean; host: { id: string; code: string; name: string } }
+}
+
+export interface BackupJobsDto {
+  summary: {
+    jobs: number
+    ok: number
+    failed: number
+    overdue: number
+    assetsTotal: number
+    assetsCovered: number
+    runs24h: { success: number; failed: number }
+    bytes24h: number
+    lastRunAt: string | null
+    overdueAfterHours: number
+  }
+  jobs: BackupJobDto[]
+  uncovered: BackupJobDto["asset"][]
+}
+
+export interface BackupRunDto {
+  id: string
+  jobName: string
+  type: string
+  status: "SUCCESS" | "FAILED"
+  startedAt: string | null
+  finishedAt: string
+  sizeBytes: number | null
+  durationSec: number | null
+  target: string | null
+  message: string | null
+}
+
+// ── Keamanan ────────────────────────────────────────────────────────────────
+export interface SecurityOverviewDto {
+  summary: {
+    failedLogins24h: number
+    failedLogins7d: number
+    successLogins24h: number
+    lockedAccounts: number
+    dormantAccounts: number
+    activeUsers: number
+    admins: number
+    certificatesExpiring: number
+    certificatesExpired: number
+    osEndOfSupport: number
+    osEndingSoon: number
+    dormantAfterDays: number
+  }
+  failedLogins: {
+    byUsername: { key: string; count: number }[]
+    byIp: { key: string; count: number }[]
+    perHour: { hour: string; count: number }[]
+  }
+  lockedAccounts: { id: string; username: string; fullName: string; role: BackendRole; lockedUntil: string }[]
+  dormantAccounts: { id: string; username: string; fullName: string; role: BackendRole; lastLoginAt: string | null }[]
+  certificates: { id: string; code: string; name: string; expiryDate: string; picName: string | null; location: string | null; daysLeft: number }[]
+  operatingSystems: { id: string; code: string; name: string; expiryDate: string; quantity: number; location: string | null; daysLeft: number }[]
+  sensitiveChanges: { id: string; action: string; actorUsername: string; entity: string | null; entityId: string | null; ipAddress: string | null; createdAt: string }[]
+}
+
+// ── Eskalasi ────────────────────────────────────────────────────────────────
+export interface EscalationStepDto {
+  level: number
+  afterMinutes: number
+  targetLabel: string
+  mention: string | null
+  telegramChatId: string | null
+}
+
+export interface EscalationPolicyDto {
+  severity: BackendSeverity
+  ackMinutes: number
+  resolveMinutes: number
+  enabled: boolean
+  updatedAt: string
+  steps: EscalationStepDto[]
+}
+
+export interface EscalationActiveDto {
+  summary: {
+    open: number
+    escalated: number
+    ackBreached: number
+    resolveBreached: number
+    closed30d: number
+    ackCompliancePct: number | null
+    resolveCompliancePct: number | null
+  }
+  items: {
+    id: string
+    code: string
+    severity: BackendSeverity
+    status: BackendAlertStatus
+    problem: string
+    conditionActive: boolean
+    detectedAt: string
+    asset: { id: string; hostname: string; host: { code: string; name: string } }
+    escalationLevel: number
+    lastEscalatedAt: string | null
+    currentTarget: string | null
+    next: { level: number; targetLabel: string; at: string } | null
+    ackDueAt: string | null
+    resolveDueAt: string | null
+    ackBreached: boolean
+    resolveBreached: boolean
+  }[]
+}
+
+/** "90 menit" → "1 jam 30 menit"; dipakai untuk SLA dan eskalasi. */
+export function formatMinutes(total: number): string {
+  if (total < 60) return `${total} menit`
+  const days = Math.floor(total / 1440)
+  const hours = Math.floor((total % 1440) / 60)
+  const minutes = total % 60
+  return [days && `${days} hari`, hours && `${hours} jam`, minutes && `${minutes} menit`].filter(Boolean).join(" ")
+}
+
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null || bytes === undefined) return "—"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let v = bytes
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${v.toLocaleString("id-ID", { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 })} ${units[i]}`
+}
+
+/** "3 menit lalu", "2 jam lalu", "dalam 5 menit" */
+export function relativeTime(iso: string | null, now = Date.now()): string {
+  if (!iso) return "—"
+  const diff = Math.round((new Date(iso).getTime() - now) / 60_000)
+  const abs = Math.abs(diff)
+  const text = abs < 1 ? "baru saja" : abs < 60 ? `${abs} menit` : abs < 1440 ? `${Math.floor(abs / 60)} jam` : `${Math.floor(abs / 1440)} hari`
+  if (abs < 1) return text
+  return diff < 0 ? `${text} lalu` : `dalam ${text}`
 }
 
 export interface UserDto {
@@ -280,6 +449,8 @@ export const METRIC_LABEL: Record<RuleMetric, string> = {
   MEMORY: "Memory",
   DISK: "Disk",
   HOST_STALE: "Host stale",
+  BACKUP_FAILED: "Backup gagal beruntun",
+  BACKUP_AGE: "Umur backup",
 }
 
 const AUDIT_LABEL: Record<string, string> = {
@@ -307,6 +478,8 @@ const AUDIT_LABEL: Record<string, string> = {
   LIFECYCLE_DELETE: "Item siklus hidup dihapus",
   RENEWAL_REQUEST: "Pengajuan perpanjangan",
   RENEWAL_DECIDE: "Keputusan perpanjangan",
+  ESCALATION_UPDATE: "Matriks eskalasi diubah",
+  ALERT_ATTACHMENT_UPLOAD: "Bukti remediasi diunggah",
 }
 
 export const ALERT_EVENT_LABEL: Record<string, string> = {
@@ -317,6 +490,7 @@ export const ALERT_EVENT_LABEL: Record<string, string> = {
   RETURNED: "Dikembalikan ke penanganan",
   CLOSED: "Alert ditutup",
   SEVERITY_RAISED: "Severity naik",
+  ESCALATED: "Dieskalasi",
 }
 
 const NOTIF_STATUS: Record<NotificationDto["status"], string> = {
@@ -407,6 +581,7 @@ export function toAlert(a: AlertDto): AlertItem {
     threshold: a.thresholdValue,
     conditionActive: a.conditionActive,
     closeNote: a.closeNote,
+    escalationLevel: a.escalationLevel ?? 0,
   }
 }
 

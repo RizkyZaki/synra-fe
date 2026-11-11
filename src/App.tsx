@@ -51,6 +51,7 @@ import AlertIncidentPage, { alertStatusTone } from "./components/AlertIncidentPa
 import LifecyclePage, { type LifecyclePageName } from "./components/LifecyclePage"
 import LoginPage from "./components/LoginPage"
 import MonitoringPage, { type MonitoringName } from "./components/MonitoringPage"
+import BackupSecurityPage from "./components/BackupSecurityPage"
 import NotificationEscalationPage from "./components/NotificationEscalationPage"
 import ReportsPage from "./components/ReportsPage"
 import InfrastructureHealthPage from "./components/InfrastructureHealthPage"
@@ -735,6 +736,8 @@ export default function App() {
                   <InfrastructureHealthPage />
                 ) : active === "Inventaris Aset" ? (
                   <AssetInventory selectedId={selectedAssetId} onSelectedIdChange={setSelectedAssetId} />
+                ) : active === "Backup & Keamanan" ? (
+                  <BackupSecurityPage />
                 ) : monitoringPages.includes(active as MonitoringName) ? (
                   <MonitoringPage name={active as MonitoringName} />
                 ) : lifecyclePages.includes(active as LifecyclePageName) ? (

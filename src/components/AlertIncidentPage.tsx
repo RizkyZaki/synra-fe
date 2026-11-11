@@ -5,6 +5,7 @@ import { restrictedAction, useAccess } from "../lib/useAccess"
 import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
 import { ALERT_EVENT_LABEL, STATUS_TO_FE, formatDateTime } from "../lib/backend"
+import { AlertEvidence } from "./AlertEvidence"
 import type { AlertItem, AlertStatus } from "../lib/synraDomain"
 import {
   SEVERITY_FILTER_ITEMS,
@@ -48,11 +49,14 @@ export function alertStatusTone(status: AlertStatus) {
 function WorkflowForm({
   title,
   requireEvidence = false,
+  attachmentCount = 0,
   allowed,
   onSubmit,
 }: {
   title: string
   requireEvidence?: boolean
+  /** Lampiran yang sudah diunggah; bila ada, teks bukti boleh kosong */
+  attachmentCount?: number
   allowed: boolean
   onSubmit: (note: string, evidence: string) => Promise<void> | void
 }) {
@@ -69,8 +73,8 @@ function WorkflowForm({
           setError("Catatan wajib diisi.")
           return
         }
-        if (requireEvidence && !evidence.trim()) {
-          setError("Bukti remediasi wajib diisi sebelum review.")
+        if (requireEvidence && !evidence.trim() && attachmentCount === 0) {
+          setError("Isi ringkasan bukti atau unggah minimal satu lampiran di panel Bukti Remediasi.")
           return
         }
         setError("")
@@ -81,11 +85,12 @@ function WorkflowForm({
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} placeholder="Tuliskan catatan penanganan" />
       </FormField>
       {requireEvidence && (
-        <FormField label="Bukti remediasi">
-          <Input
+        <FormField label={attachmentCount ? `Ringkasan bukti (opsional, ${attachmentCount} lampiran)` : "Ringkasan bukti"}>
+          <Textarea
             value={evidence}
             onChange={(event) => setEvidence(event.target.value)}
-            placeholder="Referensi tiket, log, atau bukti validasi"
+            rows={3}
+            placeholder="Mis. No. tiket INC-1234; disk /data turun ke 61% setelah arsip lama dipindah"
           />
         </FormField>
       )}
@@ -162,7 +167,7 @@ export default function AlertIncidentPage({
   const [toast, setToast] = useState("")
   const [busy, setBusy] = useState(false)
   const selected = alerts.find((alert) => alert.id === selectedId) ?? null
-  const events = useAlertDetail(selected?.apiId, selected?.status)
+  const { events, attachments, reload: reloadDetail } = useAlertDetail(selected?.apiId, selected?.status)
 
   const filtered = useMemo(
     () =>
@@ -263,12 +268,13 @@ export default function AlertIncidentPage({
               <SeverityBadge severity={selected.severity} />
             </div>
 
-            <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-3 md:grid-cols-5">
               {[
                 ["Nilai terakhir", selected.value?.toLocaleString("id-ID") ?? "—"],
                 ["Batas", selected.threshold?.toLocaleString("id-ID") ?? "—"],
                 ["Terdeteksi", selected.createdAt],
                 ["Kondisi", selected.conditionActive === false ? "Sudah normal" : "Masih aktif"],
+                ["Eskalasi", selected.escalationLevel ? `Tingkat ${selected.escalationLevel}` : "Belum"],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0 rounded-xl border border-border bg-muted/40 p-3">
                   <dt className="type-label text-muted-foreground">{label}</dt>
@@ -292,6 +298,18 @@ export default function AlertIncidentPage({
         </GlassCard>
 
         <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+          <div className="flex min-w-0 flex-col gap-6">
+          {selected.apiId && (
+            <AlertEvidence
+              alertApiId={selected.apiId}
+              attachments={attachments}
+              canUpload={canEdit && selected.status !== "Ditutup"}
+              onUploaded={(count) => {
+                reloadDetail()
+                setToast(`${count} lampiran diunggah`)
+              }}
+            />
+          )}
           <GlassCard className="min-w-0 p-5 md:p-6">
             <CardHeading icon={ListChecks} title="Riwayat Penanganan" description="Timeline perubahan status" className="mb-5" />
             {events.length === 0 ? (
@@ -326,8 +344,9 @@ export default function AlertIncidentPage({
               </ol>
             )}
           </GlassCard>
+          </div>
 
-          <GlassCard className="min-w-0 p-5 md:p-6">
+          <GlassCard className="min-w-0 self-start p-5 md:p-6">
             <CardHeading icon={Workflow} title="Alur Status" description="Tindakan sesuai tahap saat ini" className="mb-5" />
             <ol className="mb-6 flex flex-col">
               {statusFlow.map((status, index) => {
@@ -376,6 +395,7 @@ export default function AlertIncidentPage({
                   title="Ajukan Review Penutupan"
                   allowed={canEdit}
                   requireEvidence
+                  attachmentCount={attachments.length}
                   onSubmit={(note, evidence) => changeStatus(selected, "submit-review", "Menunggu Review", note, evidence)}
                 />
               )}

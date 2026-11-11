@@ -84,3 +84,32 @@ export async function apiDownload(path: string, fallbackName: string): Promise<v
 
 /** Event saat login/logout agar store memuat atau mengosongkan data. */
 export const SESSION_EVENT = "synra:session"
+
+/** Membuka file dari endpoint ber-auth di tab baru (lampiran gambar/PDF) atau mengunduhnya. */
+export async function apiOpenFile(path: string, fileName: string, inline: boolean): Promise<void> {
+  const token = tokenStore.get()
+  // Tab dibuka lebih dulu (masih dalam gestur klik) agar tidak diblokir popup blocker.
+  const tab = inline ? window.open("", "_blank") : null
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  } catch {
+    tab?.close()
+    throw new ApiError("Tidak dapat terhubung ke server SYNRA", 0)
+  }
+  if (!response.ok) {
+    tab?.close()
+    const body = await response.json().catch(() => null)
+    throw new ApiError(body?.message ?? "Gagal membuka file", response.status)
+  }
+  const url = URL.createObjectURL(await response.blob())
+  if (tab) {
+    tab.location.href = url
+  } else {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    link.click()
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}

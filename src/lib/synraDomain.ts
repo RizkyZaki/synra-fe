@@ -92,6 +92,8 @@ export interface AlertItem {
   /** false bila kondisi sudah normal kembali tetapi alert belum ditutup */
   conditionActive?: boolean
   closeNote?: string | null
+  /** Tingkat eskalasi yang sudah dikirim (0 = belum) */
+  escalationLevel?: number
 }
 
 export interface RenewalRequest {

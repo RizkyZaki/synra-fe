@@ -372,16 +372,20 @@ export function useUtilization(period: "24 jam" | "7 hari" | "30 hari") {
 
 /** Detail alert (timeline) dari backend. */
 export function useAlertDetail(apiId: string | undefined, version: unknown) {
-  const [events, setEvents] = useState<import("./backend").AlertEventDto[]>([])
+  const [detail, setDetail] = useState<Pick<import("./backend").AlertDetailDto, "events" | "attachments">>({
+    events: [],
+    attachments: [],
+  })
+  const [nonce, setNonce] = useState(0)
   useEffect(() => {
     if (!apiId) return
     let cancelled = false
     apiFetch<import("./backend").AlertDetailDto>(`/alerts/${apiId}`)
-      .then((res) => !cancelled && setEvents(res.events))
-      .catch(() => !cancelled && setEvents([]))
+      .then((res) => !cancelled && setDetail({ events: res.events, attachments: res.attachments ?? [] }))
+      .catch(() => !cancelled && setDetail({ events: [], attachments: [] }))
     return () => {
       cancelled = true
     }
-  }, [apiId, version])
-  return events
+  }, [apiId, version, nonce])
+  return { ...detail, reload: () => setNonce((n) => n + 1) }
 }

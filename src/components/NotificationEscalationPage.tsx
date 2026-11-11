@@ -1,17 +1,16 @@
-﻿import { CircleCheck, CircleDashed, History, Layers, Send } from "lucide-react"
+﻿import { CircleCheck, CircleDashed, History, Send } from "lucide-react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
-import type { NotificationItem, Severity } from "../lib/synraDomain"
+import type { NotificationItem } from "../lib/synraDomain"
+import { EscalationMatrix } from "./EscalationMatrix"
 import {
   ApiErrorBanner,
   CardHeading,
   DataTable,
   GlassCard,
   Pagination,
-  ScopeNotice,
-  SeverityBadge,
   StatusBadge,
   Toast,
   usePagination,
@@ -20,14 +19,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { SpotlightCard } from "@/components/aceternity/spotlight-card"
 import { cn } from "@/lib/utils"
-
-const slaMatrix: Array<{ severity: Severity; response: string; target: string; escalation: string }> = [
-  { severity: "Info", response: "Dashboard", target: "Dashboard", escalation: "—" },
-  { severity: "Low", response: "24 jam", target: "Engineer", escalation: "24 jam" },
-  { severity: "Medium", response: "8 jam", target: "Supervisor", escalation: "8 jam" },
-  { severity: "High", response: "2 jam", target: "Kepala Departemen", escalation: "2 jam" },
-  { severity: "Critical", response: "15 menit", target: "Kepala Divisi / Manajemen", escalation: "15 / 30 / 60 / 120 menit" },
-]
 
 /** Ikon Telegram sederhana (pesawat kertas). */
 function TelegramMark() {
@@ -103,7 +94,7 @@ export default function NotificationEscalationPage() {
                 </span>
               </div>
               <p className="type-body mt-1.5 text-muted-foreground">
-                Dikirim otomatis saat alert dibuat dan setiap perubahan status alert.
+                Dikirim otomatis saat alert dibuat, setiap perubahan status, dan saat alert naik tingkat eskalasi.
                 {api.telegramConfigured === false &&
                   " Isi TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID di server; sampai saat itu notifikasi tercatat sebagai dilewati."}
               </p>
@@ -132,31 +123,7 @@ export default function NotificationEscalationPage() {
         </div>
       </div>
 
-      <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
-        <CardHeading icon={Layers} title="Matriks Eskalasi" description="Referensi SLA per severity" />
-        <ScopeNotice>Eskalasi berjenjang tidak termasuk cakupan SYNRA. Matriks di bawah hanya referensi.</ScopeNotice>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {slaMatrix.map((item) => (
-            <div key={item.severity} className="min-w-0 rounded-xl border border-border bg-muted/40 p-4">
-              <SeverityBadge severity={item.severity} />
-              <dl className="mt-3 flex flex-col gap-2 text-sm">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Respons</dt>
-                  <dd className="text-right font-medium">{item.response}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Tujuan</dt>
-                  <dd className="text-right">{item.target}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Eskalasi</dt>
-                  <dd className="text-right">{item.escalation}</dd>
-                </div>
-              </dl>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
+      <EscalationMatrix />
 
       <GlassCard className="flex min-w-0 flex-col gap-4 p-5">
         <CardHeading icon={History} title="Riwayat Notifikasi" description={`${notifications.length} notifikasi`} />
