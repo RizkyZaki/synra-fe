@@ -29,6 +29,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
+const RECOVERED_HINT =
+  "Masalahnya sudah tidak terdeteksi lagi, tetapi alert belum ditutup. Catat penyebabnya lalu ajukan penutupan. Bila masalah muncul lagi sebelum ditutup, alert yang sama aktif kembali."
+
 const statusFlow: AlertStatus[] = ["Baru", "Diakui", "Dalam Penanganan", "Menunggu Review", "Ditutup"]
 
 const statusLabels: Record<AlertStatus, string> = {
@@ -216,7 +219,10 @@ export default function AlertIncidentPage({
         <span className="flex min-w-[240px] max-w-[420px] flex-wrap items-center gap-2 whitespace-normal">
           <strong className="font-medium">{alert.name}</strong>
           {alert.conditionActive === false && alert.status !== "Ditutup" && (
-            <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[11px] text-success">
+            <span
+              className="inline-flex cursor-help rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[11px] text-success"
+              title={RECOVERED_HINT}
+            >
               kondisi pulih
             </span>
           )}
@@ -283,6 +289,22 @@ export default function AlertIncidentPage({
                 </div>
               ))}
             </dl>
+
+            {selected.conditionActive === false && selected.status !== "Ditutup" && (
+              <div role="note" className="flex items-start gap-3 rounded-xl border border-success/25 bg-success/[0.06] p-4">
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-success" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-success">
+                    Kondisi sudah normal{selected.recoveredAt ? ` sejak ${formatDateTime(selected.recoveredAt)}` : ""}
+                  </p>
+                  <p className="type-body mt-1 text-muted-foreground">
+                    Masalahnya tidak lagi terdeteksi, tetapi kejadiannya tetap perlu ditindaklanjuti: cari dan catat penyebabnya,
+                    lalu ajukan penutupan. Supervisor dapat langsung menutup alert bila tidak perlu tindakan lanjutan. Bila masalah
+                    muncul lagi sebelum ditutup, penanda ini hilang dan alert yang sama kembali aktif.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-4">
               <p className="type-label mb-1 text-primary">Rekomendasi</p>

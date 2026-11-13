@@ -92,6 +92,8 @@ export interface AlertItem {
   threshold?: number
   /** false bila kondisi sudah normal kembali tetapi alert belum ditutup */
   conditionActive?: boolean
+  /** Waktu (ISO) kondisi terdeteksi normal kembali */
+  recoveredAt?: string | null
   closeNote?: string | null
   /** Tingkat eskalasi yang sudah dikirim (0 = belum) */
   escalationLevel?: number
@@ -153,6 +155,7 @@ export interface Rule {
   severity?: string
   operator?: "GT" | "GTE"
   enabled?: boolean
+  recommendation?: string
 }
 
 export interface SynraState {

@@ -153,6 +153,8 @@ interface SynraStore {
     updateUser: (id: string, input: { fullName?: string; role?: BackendRole; isActive?: boolean }) => Promise<void>
     unlockUser: (id: string) => Promise<void>
     updateRule: (id: string, value: number) => Promise<void>
+    /** Teks kosong = kembali ke rekomendasi default dari server. */
+    updateRuleRecommendation: (id: string, recommendation: string) => Promise<void>
     /** Mengganti semua level satu metrik sekaligus, supaya urutan level divalidasi sebagai satu kesatuan. */
     saveThresholds: (metric: string, levels: ThresholdLevelInput[]) => Promise<void>
     createHost: (input: HostInput) => Promise<void>
@@ -303,6 +305,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
       updateUser: (id, input) => mutate(`/users/${id}`, "PATCH", input),
       unlockUser: (id) => mutate(`/users/${id}/unlock`, "POST"),
       updateRule: (id, value) => mutate(`/thresholds/rule/${id}`, "PATCH", { value }),
+      updateRuleRecommendation: (id, recommendation) => mutate(`/thresholds/rule/${id}`, "PATCH", { recommendation }),
       saveThresholds: (metric, levels) => mutate(`/thresholds/${metric}`, "PUT", { levels }),
       createHost: (input) => mutate("/hosts", "POST", input),
       updateHost: (id, input) => mutate(`/hosts/${id}`, "PATCH", input),

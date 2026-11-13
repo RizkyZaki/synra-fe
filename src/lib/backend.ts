@@ -306,6 +306,7 @@ export interface ThresholdLevelDto {
   operator: "GT" | "GTE"
   value: number
   enabled: boolean
+  recommendation: string | null
 }
 
 export type LifecycleCategoryDto = "OS" | "LICENSE" | "CERTIFICATE" | "WARRANTY" | "CONTRACT"
@@ -580,6 +581,7 @@ export function toAlert(a: AlertDto): AlertItem {
     value: a.lastValue,
     threshold: a.thresholdValue,
     conditionActive: a.conditionActive,
+    recoveredAt: a.recoveredAt,
     closeNote: a.closeNote,
     escalationLevel: a.escalationLevel ?? 0,
   }
@@ -618,6 +620,7 @@ export function toRules(groups: ThresholdGroupDto[]): Rule[] {
       value: l.value,
       unit: g.unit,
       enabled: l.enabled,
+      recommendation: l.recommendation ?? "",
     })),
   )
 }

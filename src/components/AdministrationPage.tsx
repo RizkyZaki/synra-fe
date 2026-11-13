@@ -1,4 +1,4 @@
-import { CalendarClock, Lock, Pencil, Plus, Save, Server, SlidersHorizontal, Trash2, UserRound, Users } from "lucide-react"
+import { CalendarClock, Lock, NotebookPen, Pencil, Plus, Save, Server, SlidersHorizontal, Trash2, UserRound, Users } from "lucide-react"
 import { motion } from "motion/react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
@@ -19,6 +19,16 @@ import {
 } from "./ui"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Select,
   SelectContent,
@@ -127,6 +137,116 @@ function AddUserDrawer({
   )
 }
 
+/** Sama dengan batas MaxLength di DTO threshold backend. */
+const REC_MAX = 500
+
+const SEVERITY_TONE: Record<string, string> = {
+  LOW: "bg-warning/60",
+  MEDIUM: "bg-warning",
+  HIGH: "bg-high",
+  CRITICAL: "bg-danger",
+}
+
+/** Modal untuk mengubah teks rekomendasi satu level threshold. Langsung tersimpan ke server. */
+function RecommendationDialog({
+  rule,
+  canEdit,
+  onClose,
+  onSaved,
+}: {
+  rule: Rule | null
+  canEdit: boolean
+  onClose: () => void
+  onSaved: (message: string) => void
+}) {
+  const { actions } = useSynraStore()
+  const [text, setText] = useState("")
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  // Isi ulang form setiap kali modal dibuka untuk level lain.
+  const [openedFor, setOpenedFor] = useState<string | undefined>()
+  if (rule?.id !== openedFor) {
+    setOpenedFor(rule?.id)
+    setText(rule?.recommendation ?? "")
+    setError("")
+  }
+
+  const unchanged = text.trim() === (rule?.recommendation ?? "").trim()
+
+  const save = async () => {
+    if (!rule?.id || !canEdit) return
+    setSaving(true)
+    setError("")
+    try {
+      await actions.updateRuleRecommendation(rule.id, text.trim())
+      onSaved(text.trim() ? "Rekomendasi berhasil disimpan" : "Rekomendasi dikembalikan ke teks default")
+      onClose()
+    } catch (e) {
+      setError(errorText(e, "Gagal menyimpan rekomendasi"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={rule !== null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen && !saving) onClose()
+      }}
+    >
+      <AlertDialogContent className="w-[calc(100%-2rem)] rounded-2xl border border-border bg-popover p-6 shadow-2xl data-[size=default]:max-w-lg data-[size=default]:sm:max-w-lg">
+        <AlertDialogHeader className="text-left">
+          <AlertDialogTitle className="type-card-title flex items-center gap-2">
+            <span
+              className={cn("h-4 w-1 shrink-0 rounded-full", SEVERITY_TONE[rule?.severity ?? ""] ?? "bg-muted-foreground/40")}
+              aria-hidden="true"
+            />
+            Rekomendasi · {rule?.name}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="type-body mt-1 text-muted-foreground">
+            Ditampilkan di detail alert dan notifikasi saat level ini terlewati. Berlaku untuk alert yang dibuat setelah disimpan.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-1.5">
+          <Textarea
+            rows={6}
+            maxLength={REC_MAX}
+            value={text}
+            disabled={!canEdit || saving}
+            placeholder="Kosongkan untuk memakai rekomendasi default"
+            aria-label={`Rekomendasi ${rule?.name ?? ""}`}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <p className="flex justify-between gap-3 text-xs text-muted-foreground">
+            <span>Kosongkan lalu simpan untuk kembali ke teks default.</span>
+            <span className="tabular-nums">
+              {text.length}/{REC_MAX}
+            </span>
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </div>
+        <AlertDialogFooter className="mt-2 flex justify-end gap-3">
+          <AlertDialogCancel disabled={saving} onClick={onClose}>
+            {canEdit ? "Batal" : "Tutup"}
+          </AlertDialogCancel>
+          {canEdit && (
+            <Button onClick={() => void save()} disabled={saving || unchanged}>
+              <Save {...iconProps} />
+              {saving ? "Menyimpan…" : "Simpan"}
+            </Button>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 /** Threshold dari backend: satu baris per level. Urutan level divalidasi server. */
 function EwsParameters() {
   const { read, actions } = useSynraStore()
@@ -136,6 +256,8 @@ function EwsParameters() {
   const [draft, setDraft] = useState<Record<string, number>>({})
   const [toast, setToast] = useState("")
   const [saving, setSaving] = useState(false)
+  const [recRuleId, setRecRuleId] = useState<string | null>(null)
+  const recRule = rules.find((rule) => rule.id === recRuleId) ?? null
 
   const valueOf = (rule: Rule) => draft[rule.id!] ?? rule.value
 
@@ -188,19 +310,13 @@ function EwsParameters() {
     return acc
   }, {})
   const dirty = rules.some((rule) => rule.id && draft[rule.id] !== undefined && draft[rule.id] !== rule.value)
-  const severityTone: Record<string, string> = {
-    LOW: "bg-warning/60",
-    MEDIUM: "bg-warning",
-    HIGH: "bg-high",
-    CRITICAL: "bg-danger",
-  }
 
   return (
     <>
       <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
         <CardHeading
           title={`Threshold Alert (${rules.length} level)`}
-          description="Nilai level satu metrik harus naik sesuai urutan severity (Warning < Medium < High < Critical)."
+          description="Nilai level satu metrik harus naik sesuai urutan severity (Warning < Medium < High < Critical). Klik ikon catatan di tiap level untuk mengatur rekomendasi yang tampil di alert."
           actions={
             <Button onClick={() => void save()} {...restrictedAction(canConfig && !saving)}>
               <Save {...iconProps} />
@@ -226,14 +342,26 @@ function EwsParameters() {
                 {items.map((rule) => {
                   const changed = rule.id !== undefined && draft[rule.id] !== undefined && draft[rule.id] !== rule.value
                   return (
-                    <label key={rule.id ?? rule.name} className="flex items-center gap-3">
+                    <div key={rule.id ?? rule.name} className="flex items-center gap-3">
                       <span
-                        className={cn("h-8 w-1 shrink-0 rounded-full", severityTone[rule.severity ?? ""] ?? "bg-muted-foreground/40")}
+                        className={cn("h-8 w-1 shrink-0 rounded-full", SEVERITY_TONE[rule.severity ?? ""] ?? "bg-muted-foreground/40")}
                         aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1 truncate text-[13px]" title={rule.name}>
                         {rule.name.split(" · ").slice(1).join(" · ") || rule.name}
                       </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title={rule.recommendation ? `Rekomendasi: ${rule.recommendation}` : "Atur rekomendasi"}
+                        aria-label={`${canConfig ? "Ubah" : "Lihat"} rekomendasi ${rule.name}`}
+                        disabled={!rule.id}
+                        onClick={() => setRecRuleId(rule.id ?? null)}
+                      >
+                        <NotebookPen size={15} aria-hidden="true" />
+                      </Button>
                       <Input
                         type="number"
                         min="0"
@@ -244,7 +372,7 @@ function EwsParameters() {
                         className={cn("h-8 w-24 text-right tabular-nums", changed && "border-primary ring-2 ring-primary/20")}
                         onChange={(event) => setDraft((current) => ({ ...current, [rule.id!]: Number(event.target.value) }))}
                       />
-                    </label>
+                    </div>
                   )
                 })}
               </div>
@@ -252,6 +380,7 @@ function EwsParameters() {
           ))}
         </div>
       </GlassCard>
+      <RecommendationDialog rule={recRule} canEdit={canConfig} onClose={() => setRecRuleId(null)} onSaved={setToast} />
       <Toast visible={Boolean(toast)} message={toast} onClose={() => setToast("")} />
     </>
   )
