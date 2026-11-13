@@ -17,6 +17,7 @@ import {
   healthDimensions,
   lifecycleSeverity,
   roles,
+  type AlertItem,
   type ExpiryThresholds,
   type SynraState,
 } from "./synraDomain"
@@ -30,6 +31,8 @@ import {
 } from "./api"
 import {
   type AlertDto,
+  type BackendAlertStatus,
+  type BackendSeverity,
   type AssetDto,
   type AuditDto,
   type AvailabilityDto,
@@ -425,4 +428,98 @@ export function useAlertDetail(apiId: string | undefined, version: unknown) {
     }
   }, [apiId, version, nonce])
   return { ...detail, reload: () => setNonce((n) => n + 1) }
+}
+
+export interface AlertListQuery {
+  page: number
+  limit: number
+  /** "open" = semua yang belum ditutup; kosong = semua status */
+  status?: BackendAlertStatus | "open"
+  severity?: BackendSeverity
+  /** Hanya alert yang terdeteksi dalam N hari terakhir */
+  periodDays?: number
+  search?: string
+}
+
+const FUNNEL_STATUSES: BackendAlertStatus[] = ["NEW", "ACKNOWLEDGED", "IN_PROGRESS", "PENDING_REVIEW", "CLOSED"]
+
+/**
+ * Daftar alert dengan filter dan paginasi di server (tidak dibatasi 100 data seperti store),
+ * plus jumlah per status untuk filter yang sama. Diambil ulang setiap data store diperbarui.
+ */
+export function useAlertList(query: AlertListQuery) {
+  const { read } = useSynraStore()
+  const version = read("alerts")
+  const [state, setState] = useState<{
+    rows: AlertItem[]
+    total: number
+    totalPages: number
+    counts: Record<BackendAlertStatus, number> | null
+    loading: boolean
+    error: string
+  }>({ rows: [], total: 0, totalPages: 1, counts: null, loading: true, error: "" })
+  const { page, limit, status, severity, periodDays, search } = query
+
+  useEffect(() => {
+    let cancelled = false
+    const base = new URLSearchParams()
+    if (severity) base.set("severity", severity)
+    if (periodDays) base.set("from", new Date(Date.now() - periodDays * 86_400_000).toISOString())
+    if (search?.trim()) base.set("search", search.trim())
+    const withStatus = (s: string | undefined, p: number, l: number) => {
+      const params = new URLSearchParams(base)
+      if (s) params.set("status", s)
+      params.set("page", String(p))
+      params.set("limit", String(l))
+      return `/alerts?${params}`
+    }
+    setState((current) => ({ ...current, loading: true }))
+    Promise.all([
+      apiFetch<Paginated<AlertDto>>(withStatus(status, page, limit)),
+      Promise.all(FUNNEL_STATUSES.map((s) => apiFetch<Paginated<AlertDto>>(withStatus(s, 1, 1)))),
+    ])
+      .then(([list, perStatus]) => {
+        if (cancelled) return
+        setState({
+          rows: list.data.map(toAlert),
+          total: list.meta.total,
+          totalPages: Math.max(1, list.meta.totalPages),
+          counts: Object.fromEntries(FUNNEL_STATUSES.map((s, i) => [s, perStatus[i].meta.total])) as Record<
+            BackendAlertStatus,
+            number
+          >,
+          loading: false,
+          error: "",
+        })
+      })
+      .catch((e) => {
+        if (!cancelled) setState((current) => ({ ...current, loading: false, error: e instanceof ApiError ? e.message : "Gagal memuat alert" }))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [page, limit, status, severity, periodDays, search, version])
+
+  return state
+}
+
+/** Mengambil satu alert berdasarkan kode (mis. ALT-018) bila tidak ada di data store. */
+export function useAlertByCode(code: string | null, skip: boolean) {
+  const { read } = useSynraStore()
+  const version = read("alerts")
+  const [alert, setAlert] = useState<AlertItem | null>(null)
+  useEffect(() => {
+    if (!code || skip) return
+    let cancelled = false
+    apiFetch<Paginated<AlertDto>>(`/alerts?search=${encodeURIComponent(code)}&limit=1`)
+      .then((res) => {
+        const found = res.data.map(toAlert).find((a) => a.id === code) ?? null
+        if (!cancelled) setAlert(found)
+      })
+      .catch(() => !cancelled && setAlert(null))
+    return () => {
+      cancelled = true
+    }
+  }, [code, skip, version])
+  return code && !skip ? alert : null
 }

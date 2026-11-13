@@ -1,14 +1,21 @@
-import { CheckCircle2, ClipboardCheck, Radar } from "lucide-react"
+import { CheckCircle2, ClipboardCheck, Radar, Search } from "lucide-react"
 import { motion } from "motion/react"
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 import { restrictedAction, useAccess } from "../lib/useAccess"
-import { type AlertTransition, useAlertDetail, useSynraStore } from "../lib/useSynraStore"
+import { type AlertTransition, useAlertByCode, useAlertDetail, useAlertList, useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
-import { ALERT_EVENT_LABEL, STATUS_TO_FE, formatDateTime } from "../lib/backend"
-import { AlertEvidence } from "./AlertEvidence"
-import type { AlertItem, AlertStatus } from "../lib/synraDomain"
 import {
-  SEVERITY_FILTER_ITEMS,
+  ALERT_EVENT_LABEL,
+  SEVERITY_TO_BE,
+  STATUS_TO_FE,
+  formatDateTime,
+  type BackendAlertStatus,
+  type BackendSeverity,
+} from "../lib/backend"
+import { AlertEvidence } from "./AlertEvidence"
+import type { AlertItem, AlertStatus, Severity } from "../lib/synraDomain"
+import {
   ApiErrorBanner,
   CardHeading,
   DataTable,
@@ -20,7 +27,6 @@ import {
   SeverityBadge,
   StatusBadge,
   Toast,
-  usePagination,
   type DataTableColumn,
 } from "./ui"
 import { Button } from "@/components/ui/button"
@@ -40,6 +46,34 @@ const statusLabels: Record<AlertStatus, string> = {
   "Dalam Penanganan": "Dalam penanganan",
   "Menunggu Review": "Menunggu tinjauan",
   Ditutup: "Ditutup",
+}
+
+const STATUS_TO_BE = Object.fromEntries(
+  Object.entries(STATUS_TO_FE).map(([be, fe]) => [fe, be]),
+) as Record<AlertStatus, BackendAlertStatus>
+
+const PAGE_SIZE = 10
+/** Default daftar: hanya alert yang belum ditutup. */
+const DEFAULT_STATUS = "open"
+const STATUS_FILTER_ITEMS: Record<string, string> = {
+  open: "Terbuka (belum ditutup)",
+  all: "Semua status",
+  ...Object.fromEntries(statusFlow.map((s) => [STATUS_TO_BE[s], statusLabels[s]])),
+}
+const SEVERITY_ITEMS: Record<string, string> = {
+  all: "Semua",
+  CRITICAL: "Kritis",
+  HIGH: "Tinggi",
+  MEDIUM: "Sedang",
+  LOW: "Rendah",
+  INFO: "Info",
+}
+const PERIOD_ITEMS: Record<string, string> = {
+  all: "Semua waktu",
+  "1": "24 jam terakhir",
+  "7": "7 hari terakhir",
+  "30": "30 hari terakhir",
+  "90": "90 hari terakhir",
 }
 
 export function alertStatusTone(status: AlertStatus) {
@@ -110,16 +144,27 @@ function WorkflowForm({
 }
 
 /** Jumlah alert per tahap; klik tahap untuk memfilter tabel. Dipindah dari dashboard. */
-function AlertFunnel({ active, onSelect }: { active: string; onSelect: (status: string) => void }) {
-  const { helpers } = useSynraStore()
-  const funnel = helpers.alertFunnel()
+function AlertFunnel({
+  active,
+  counts,
+  onSelect,
+}: {
+  active: string
+  counts: Record<BackendAlertStatus, number> | null
+  onSelect: (status: AlertStatus) => void
+}) {
+  const funnel = statusFlow.map((status) => ({ status, count: counts?.[STATUS_TO_BE[status]] ?? 0 }))
   const max = Math.max(1, ...funnel.map((stage) => stage.count))
   return (
     <GlassCard className="min-w-0 p-4 md:p-5">
-      <CardHeading title="Tahap Alert" description="Klik tahap untuk memfilter tabel" className="mb-4" />
+      <CardHeading
+        title="Tahap Alert"
+        description="Jumlah sesuai filter periode, severity, dan pencarian. Klik tahap untuk memfilter tabel."
+        className="mb-4"
+      />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {funnel.map((stage, index) => {
-          const selectedStage = active === stage.status
+          const selectedStage = active === STATUS_TO_BE[stage.status]
           return (
             <button
               key={stage.status}
@@ -132,7 +177,7 @@ function AlertFunnel({ active, onSelect }: { active: string; onSelect: (status: 
               )}
             >
               <span className="type-label block truncate text-muted-foreground">
-                {statusLabels[stage.status as AlertStatus] ?? stage.status}
+                {statusLabels[stage.status]}
               </span>
               <span className="mt-2 block text-2xl font-semibold tabular-nums">{stage.count}</span>
               <span className="mt-3 block h-1 overflow-hidden rounded-full bg-muted">
@@ -164,24 +209,52 @@ export default function AlertIncidentPage({
   const canApprove = can("approve")
   const canConfig = can("config")
   const alerts = read("alerts")
-  const [severityFilter, setSeverityFilter] = useState("Semua")
-  const [statusFilter, setStatusFilter] = useState("Semua")
   const [toast, setToast] = useState("")
   const [busy, setBusy] = useState(false)
-  const selected = alerts.find((alert) => alert.id === selectedId) ?? null
+
+  // Filter disimpan di URL (?status=&severity=&period=&q=&page=) supaya tetap ada saat kembali dari detail.
+  const [params, setParams] = useSearchParams()
+  const statusFilter = params.get("status") ?? DEFAULT_STATUS
+  const severityFilter = params.get("severity") ?? "all"
+  const periodFilter = params.get("period") ?? "all"
+  const searchParam = params.get("q") ?? ""
+  const page = Math.max(1, Number(params.get("page")) || 1)
+  const setFilter = (key: string, value: string, fallback: string) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (value === fallback) next.delete(key)
+        else next.set(key, value)
+        if (key !== "page") next.delete("page")
+        return next
+      },
+      { replace: true },
+    )
+
+  // Ketikan pencarian ditunda sebentar agar tidak memanggil server di setiap huruf.
+  const [searchInput, setSearchInput] = useState(searchParam)
+  useEffect(() => setSearchInput(searchParam), [searchParam])
+  useEffect(() => {
+    if (searchInput === searchParam) return
+    const timer = setTimeout(() => setFilter("q", searchInput.trim(), ""), 350)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
+
+  const list = useAlertList({
+    page,
+    limit: PAGE_SIZE,
+    status: statusFilter === "all" ? undefined : (statusFilter as BackendAlertStatus | "open"),
+    severity: severityFilter === "all" ? undefined : (severityFilter as BackendSeverity),
+    periodDays: periodFilter === "all" ? undefined : Number(periodFilter),
+    search: searchParam,
+  })
+
+  // Detail dicari di data store, di halaman daftar, lalu langsung ke server (alert lama di luar 100 terbaru).
+  const known = alerts.find((alert) => alert.id === selectedId) ?? list.rows.find((alert) => alert.id === selectedId) ?? null
+  const fetched = useAlertByCode(selectedId, Boolean(known))
+  const selected = known ?? fetched
   const { events, attachments, reload: reloadDetail } = useAlertDetail(selected?.apiId, selected?.status)
-
-  const filtered = useMemo(
-    () =>
-      alerts.filter(
-        (alert) =>
-          (severityFilter === "Semua" || alert.severity === severityFilter) &&
-          (statusFilter === "Semua" || alert.status === statusFilter),
-      ),
-    [alerts, severityFilter, statusFilter],
-  )
-
-  const { page, setPage, totalPages, startIndex, endIndex, totalRows, paginatedRows } = usePagination(filtered, 10)
 
   /** Perubahan status dikirim ke backend; backend memvalidasi alur, role, dan mencatat audit. */
   const changeStatus = async (alert: AlertItem, action: AlertTransition, target: AlertStatus, note?: string, evidence?: string) => {
@@ -453,15 +526,43 @@ export default function AlertIncidentPage({
     )
   }
 
+  const filterSelect = (
+    label: string,
+    key: string,
+    value: string,
+    fallback: string,
+    items: Record<string, string>,
+    className: string,
+  ) => (
+    <FilterField label={label} className={className}>
+      <Select items={items} value={value} onValueChange={(next) => setFilter(key, next ?? fallback, fallback)}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(items).map(([itemValue, itemLabel]) => (
+            <SelectItem key={itemValue} value={itemValue}>
+              {itemLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+  const filtersActive =
+    statusFilter !== DEFAULT_STATUS || severityFilter !== "all" || periodFilter !== "all" || searchParam !== ""
+  const startIndex = (page - 1) * PAGE_SIZE
+
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <ApiErrorBanner message={error} />
+      <ApiErrorBanner message={error || list.error} />
 
       <AlertFunnel
         active={statusFilter}
+        counts={list.counts}
         onSelect={(status) => {
-          setStatusFilter((current) => (current === status ? "Semua" : status))
-          setPage(1)
+          const value = STATUS_TO_BE[status]
+          setFilter("status", statusFilter === value ? DEFAULT_STATUS : value, DEFAULT_STATUS)
         }}
       />
 
@@ -473,67 +574,50 @@ export default function AlertIncidentPage({
             </Button>
           }
         >
-          <FilterField label="Severity" className="w-full sm:w-[160px]">
-            <Select items={SEVERITY_FILTER_ITEMS}
-              value={severityFilter}
-              onValueChange={(value) => {
-                setSeverityFilter(value ?? "Semua")
-                setPage(1)
+          <FilterField label="Cari" className="w-full sm:w-[240px]">
+            <label className="relative min-w-0">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Host, masalah, atau ALT-…"
+                aria-label="Cari alert"
+                className="pl-9"
+              />
+            </label>
+          </FilterField>
+          {filterSelect("Periode", "period", periodFilter, "all", PERIOD_ITEMS, "w-full sm:w-[170px]")}
+          {filterSelect("Status", "status", statusFilter, DEFAULT_STATUS, STATUS_FILTER_ITEMS, "w-full sm:w-[200px]")}
+          {filterSelect("Severity", "severity", severityFilter, "all", SEVERITY_ITEMS, "w-full sm:w-[140px]")}
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              className="self-end text-muted-foreground"
+              onClick={() => {
+                setSearchInput("")
+                setParams(new URLSearchParams(), { replace: true })
               }}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Semua">Semua</SelectItem>
-                <SelectItem value="Normal">Normal</SelectItem>
-                <SelectItem value="Info">Info</SelectItem>
-                <SelectItem value="Low">Rendah</SelectItem>
-                <SelectItem value="Medium">Sedang</SelectItem>
-                <SelectItem value="High">Tinggi</SelectItem>
-                <SelectItem value="Critical">Kritis</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterField>
-
-          <FilterField label="Status" className="w-full sm:w-[180px]">
-            <Select items={{ Semua: "Semua", ...statusLabels }}
-              value={statusFilter}
-              onValueChange={(value) => {
-                setStatusFilter(value ?? "Semua")
-                setPage(1)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Semua">Semua</SelectItem>
-                {statusFlow.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {statusLabels[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+              Reset filter
+            </Button>
+          )}
         </PageToolbar>
 
         <DataTable
           columns={columns}
-          rows={paginatedRows}
+          rows={list.rows}
           rowKey={(alert) => alert.id}
           rowSeverity={(alert) => alert.severity}
           onRowClick={(alert) => onSelectedIdChange(alert.id)}
         />
 
         <Pagination
-          page={page}
-          totalPages={totalPages}
-          totalRows={totalRows}
+          page={Math.min(page, list.totalPages)}
+          totalPages={list.totalPages}
+          totalRows={list.total}
           startIndex={startIndex}
-          endIndex={endIndex}
-          onPageChange={setPage}
+          endIndex={Math.min(startIndex + list.rows.length, list.total)}
+          onPageChange={(next) => setFilter("page", String(next), "1")}
           itemLabel="alert"
         />
       </GlassCard>
