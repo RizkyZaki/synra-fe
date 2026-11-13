@@ -10,12 +10,14 @@ import {
   useState,
 } from "react"
 import {
+  DEFAULT_EXPIRY_THRESHOLDS,
   daysUntil,
   diskSeverity,
   forecastDays,
   healthDimensions,
   lifecycleSeverity,
   roles,
+  type ExpiryThresholds,
   type SynraState,
 } from "./synraDomain"
 import {
@@ -78,6 +80,8 @@ export interface ApiData {
   availability: AvailabilityDto | null
   hosts: HostDto[]
   supervisors: SupervisorDto[]
+  /** Batas sisa hari per level urgensi siklus hidup (dari backend, default bila gagal dimuat). */
+  expiryThresholds: ExpiryThresholds
   telegramConfigured: boolean | null
 }
 
@@ -93,6 +97,12 @@ export interface AssetInput {
   notes?: string
   supervisorInputId?: string
   supervisorUpdateId?: string
+}
+
+export interface HostInput {
+  code: string
+  name: string
+  region?: string
 }
 
 export interface ThresholdLevelInput {
@@ -145,6 +155,10 @@ interface SynraStore {
     updateRule: (id: string, value: number) => Promise<void>
     /** Mengganti semua level satu metrik sekaligus, supaya urutan level divalidasi sebagai satu kesatuan. */
     saveThresholds: (metric: string, levels: ThresholdLevelInput[]) => Promise<void>
+    createHost: (input: HostInput) => Promise<void>
+    updateHost: (id: string, input: Partial<HostInput>) => Promise<void>
+    deleteHost: (id: string) => Promise<void>
+    saveExpiryThresholds: (input: ExpiryThresholds) => Promise<void>
     createLifecycle: (input: LifecycleInput) => Promise<void>
     updateLifecycle: (id: string, input: Partial<LifecycleInput>) => Promise<void>
     requestRenewal: (itemId: string, note?: string) => Promise<void>
@@ -183,7 +197,14 @@ async function optional<T>(path: string): Promise<T | null> {
 
 export function SynraStoreProvider({ children }: { children: ReactNode }) {
   const [remote, setRemote] = useState(emptyRemote)
-  const [api, setApi] = useState<ApiData>({ summary: null, availability: null, hosts: [], supervisors: [], telegramConfigured: null })
+  const [api, setApi] = useState<ApiData>({
+    summary: null,
+    availability: null,
+    hosts: [],
+    supervisors: [],
+    expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
+    telegramConfigured: null,
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const inFlight = useRef(false)
@@ -201,7 +222,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
     inFlight.current = true
     setLoading(true)
     try {
-      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors, lifecycle, renewals] =
+      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors, lifecycle, renewals, expiryThresholds] =
         await Promise.all([
           apiFetch<Paginated<AssetDto>>("/assets?limit=100"),
           apiFetch<Paginated<AlertDto>>("/alerts?limit=100"),
@@ -216,6 +237,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
           optional<SupervisorDto[]>("/users/supervisors"),
           optional<Paginated<LifecycleItemDto>>("/lifecycle?limit=100"),
           optional<Paginated<RenewalDto>>("/lifecycle/renewals?limit=100"),
+          optional<ExpiryThresholds>("/lifecycle/thresholds"),
         ])
       setRemote({
         lifecycle: lifecycle?.data.map(toLifecycle) ?? [],
@@ -227,7 +249,14 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
         users: users?.data.map(toUser) ?? [],
         audit: audit?.data.map(toAudit) ?? [],
       })
-      setApi({ summary, availability, hosts, supervisors: supervisors ?? [], telegramConfigured: notifStatus?.telegramConfigured ?? null })
+      setApi({
+        summary,
+        availability,
+        hosts,
+        supervisors: supervisors ?? [],
+        expiryThresholds: expiryThresholds ?? DEFAULT_EXPIRY_THRESHOLDS,
+        telegramConfigured: notifStatus?.telegramConfigured ?? null,
+      })
       setError("")
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data dari server")
@@ -275,6 +304,10 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
       unlockUser: (id) => mutate(`/users/${id}/unlock`, "POST"),
       updateRule: (id, value) => mutate(`/thresholds/rule/${id}`, "PATCH", { value }),
       saveThresholds: (metric, levels) => mutate(`/thresholds/${metric}`, "PUT", { levels }),
+      createHost: (input) => mutate("/hosts", "POST", input),
+      updateHost: (id, input) => mutate(`/hosts/${id}`, "PATCH", input),
+      deleteHost: (id) => mutate(`/hosts/${id}`, "DELETE"),
+      saveExpiryThresholds: (input) => mutate("/lifecycle/thresholds", "PUT", input),
       createLifecycle: (input) => mutate("/lifecycle", "POST", input),
       updateLifecycle: (id, input) => mutate(`/lifecycle/${id}`, "PATCH", input),
       requestRenewal: (itemId, note) => mutate(`/lifecycle/${itemId}/renewals`, "POST", { note }),
@@ -301,6 +334,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
     const summary = api.summary
     const helpers: SynraStore["helpers"] = {
       ...seedHelpers,
+      lifecycleSeverity: (days: number) => lifecycleSeverity(days, api.expiryThresholds),
       dashboardKpi: () => ({
         online: summary?.online ?? 0,
         totalAssets: summary?.totalAssets ?? 0,

@@ -297,16 +297,21 @@ export const daysLeft = (iso: string) =>
       TODAY) /
       864e5,
   )
-export const lifecycleSeverity = (d: number): Severity =>
+/** Batas sisa hari (inklusif) per level urgensi siklus hidup. Nilai aktif diatur admin di backend. */
+export type ExpiryThresholds = { CRITICAL: number; HIGH: number; MEDIUM: number; LOW: number }
+
+export const DEFAULT_EXPIRY_THRESHOLDS: ExpiryThresholds = { CRITICAL: 30, HIGH: 90, MEDIUM: 180, LOW: 365 }
+
+export const lifecycleSeverity = (d: number, t: ExpiryThresholds = DEFAULT_EXPIRY_THRESHOLDS): Severity =>
   d < 0
     ? "Expired"
-    : d <= 30
+    : d <= t.CRITICAL
       ? "Critical"
-      : d <= 90
+      : d <= t.HIGH
         ? "High"
-        : d <= 180
+        : d <= t.MEDIUM
           ? "Medium"
-          : d <= 365
+          : d <= t.LOW
             ? "Low"
             : "Info"
 // target: 0.9 / 0.95 / 1 -> hari sampai tercapai (min 0), null jika growth 0

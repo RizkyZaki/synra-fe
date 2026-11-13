@@ -12,10 +12,11 @@ import {
   roles,
   rules,
   summary,
+  type ExpiryThresholds,
   type Severity,
 } from "../seed"
 
-export type { Severity }
+export type { ExpiryThresholds, Severity }
 
 export type AlertStatus =
   | "Baru"
@@ -274,3 +275,4 @@ export function utilizationSeries(period: "24 jam" | "7 hari" | "30 hari") {
 }
 
 export { lifecycleSeverity, roles }
+export { DEFAULT_EXPIRY_THRESHOLDS } from "../seed"

@@ -62,7 +62,7 @@ function useKpiCards() {
     (item) => (item.status === "Aktif" || item.status === "Renewed") && helpers.daysUntil(item.expiry) >= 0,
   )
   const expiring = activeLicenses
-    .filter((item) => helpers.daysUntil(item.expiry) <= 30)
+    .filter((item) => helpers.daysUntil(item.expiry) <= api.expiryThresholds.CRITICAL)
     .sort((a, b) => helpers.daysUntil(a.expiry) - helpers.daysUntil(b.expiry))
 
   return [
@@ -78,7 +78,7 @@ function useKpiCards() {
       id: "licenses",
       label: "Lisensi aktif",
       value: `${activeLicenses.length}/${licenses.length}`,
-      tag: "H-30",
+      tag: `H-${api.expiryThresholds.CRITICAL}`,
       tone: (expiring.length > 0 ? "warning" : "good") as Tone,
       note:
         expiring.length === 0

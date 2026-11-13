@@ -338,8 +338,10 @@ function RequestRow({
 
 /** Bar sisa masa berlaku, skala 365 hari. */
 function ExpiryBar({ days }: { days: number }) {
+  const { api } = useSynraStore()
+  const t = api.expiryThresholds
   const pct = days <= 0 ? 100 : Math.max(4, Math.min(100, (days / 365) * 100))
-  const tone = days < 0 ? "bg-danger" : days <= 30 ? "bg-danger" : days <= 90 ? "bg-high" : days <= 180 ? "bg-warning" : "bg-success"
+  const tone = days < 0 ? "bg-danger" : days <= t.CRITICAL ? "bg-danger" : days <= t.HIGH ? "bg-high" : days <= t.MEDIUM ? "bg-warning" : "bg-success"
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
       <motion.div
@@ -361,7 +363,8 @@ export default function LifecyclePage({
   selectedId: string | null
   onSelectedIdChange: (id: string | null) => void
 }) {
-  const { read, actions, helpers } = useSynraStore()
+  const { read, actions, helpers, api } = useSynraStore()
+  const limits = api.expiryThresholds
   const { can } = useAccess()
   // Mengajukan: ADMIN, SUPERVISOR, OPERATOR. Kelola item dan memutuskan: ADMIN, SUPERVISOR.
   const canRequest = can("edit")
@@ -417,7 +420,7 @@ export default function LifecyclePage({
           <span className="flex w-[140px] flex-col gap-1.5">
             <span className="flex items-baseline justify-between gap-2 whitespace-nowrap">
               <span>{item.expiry}</span>
-              <span className={cn("text-xs", days < 0 ? "text-danger" : days <= 30 ? "text-danger" : "text-muted-foreground")}>
+              <span className={cn("text-xs", days < 0 ? "text-danger" : days <= api.expiryThresholds.CRITICAL ? "text-danger" : "text-muted-foreground")}>
                 {days < 0 ? `lewat ${Math.abs(days)}h` : `${days}h`}
               </span>
             </span>
@@ -554,8 +557,8 @@ export default function LifecyclePage({
     (acc, item) => {
       const days = helpers.daysUntil(item.expiry)
       if (days < 0) acc.expired += 1
-      else if (days <= 30) acc.d30 += 1
-      else if (days <= 90) acc.d90 += 1
+      else if (days <= limits.CRITICAL) acc.d30 += 1
+      else if (days <= limits.HIGH) acc.d90 += 1
       else acc.safe += 1
       return acc
     },
@@ -567,9 +570,9 @@ export default function LifecyclePage({
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           ["Kedaluwarsa", counts.expired, "text-danger", "bg-danger"],
-          ["≤ 30 hari", counts.d30, "text-high", "bg-high"],
-          ["31–90 hari", counts.d90, "text-warning", "bg-warning"],
-          ["Aman (> 90 hari)", counts.safe, "text-success", "bg-success"],
+          [`≤ ${limits.CRITICAL} hari`, counts.d30, "text-high", "bg-high"],
+          [`${limits.CRITICAL + 1}–${limits.HIGH} hari`, counts.d90, "text-warning", "bg-warning"],
+          [`Aman (> ${limits.HIGH} hari)`, counts.safe, "text-success", "bg-success"],
         ].map(([label, value, tone, dot]) => (
           <GlassCard key={label as string} className="min-w-0 p-4">
             <p className="flex items-center gap-2 type-label text-muted-foreground">
