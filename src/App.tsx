@@ -20,7 +20,6 @@
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  Search,
   Server,
   Settings2,
   ShieldCheck,
@@ -55,6 +54,7 @@ import BackupSecurityPage from "./components/BackupSecurityPage"
 import NotificationEscalationPage from "./components/NotificationEscalationPage"
 import ReportsPage from "./components/ReportsPage"
 import InfrastructureHealthPage from "./components/InfrastructureHealthPage"
+import GlobalSearch, { type GlobalSearchTarget } from "./components/GlobalSearch"
 import { AccessProvider, type SessionUser } from "./lib/useAccess"
 import { UNAUTHORIZED_EVENT } from "./lib/api"
 import { logout, restoreSession } from "./lib/auth"
@@ -395,7 +395,6 @@ export default function App() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [selectedLifecycleId, setSelectedLifecycleId] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -479,6 +478,21 @@ export default function App() {
   const navigateHref = (href: string) => {
     const destination = Object.entries(routeConfig).find(([, route]) => route.href === href)?.[0]
     if (destination) navigateTo(destination)
+  }
+  const handleSearchSelect = (target: GlobalSearchTarget) => {
+    clearDetailRoutes()
+    setMobileNavOpen(false)
+    if (target.kind === "asset") {
+      setSelectedAssetId(target.id)
+      setActive("Inventaris Aset")
+    } else if (target.kind === "alert") {
+      setSelectedAlertId(target.id)
+      setActive("Alert & Insiden")
+    } else {
+      setSelectedLifecycleId(target.id)
+      setActive(target.page)
+    }
+    window.scrollTo({ top: 0 })
   }
   const handleNotificationClick = (notification: NotificationItem) => {
     if (!readNotificationIds.includes(notification.id)) {
@@ -648,20 +662,7 @@ export default function App() {
             </nav>
 
             <div className="ml-auto flex items-center gap-1.5">
-              <label className="group relative hidden items-center sm:flex">
-                <Search size={15} className="pointer-events-none absolute left-3 text-muted-foreground" aria-hidden="true" />
-                <input
-                  ref={searchInputRef}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Cari aset, alert, lisensi…"
-                  aria-label="Cari aset, alert, atau lisensi"
-                  className="h-9 w-56 rounded-lg border border-border bg-card/70 pl-9 pr-14 text-[13px] outline-none transition-[width,border-color] placeholder:text-muted-foreground/70 focus:w-72 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
-                />
-                <kbd className="pointer-events-none absolute right-2.5 rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px] text-muted-foreground">
-                  Ctrl K
-                </kbd>
-              </label>
+              <GlobalSearch ref={searchInputRef} onSelect={handleSearchSelect} />
 
               <Button
                 variant="ghost"
