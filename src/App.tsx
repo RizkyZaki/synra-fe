@@ -30,6 +30,7 @@
 } from "lucide-react"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react"
+import { useLocation, useNavigate } from "react-router"
 import { ConfirmDialog, Drawer, PageLayout, StatusBadge, Toast } from "./components/ui"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
@@ -166,26 +167,61 @@ const navGroups: NavGroup[] = [
   },
 ]
 
+const HOME = "Pusat Kendali"
+
+/** Path URL (bahasa Inggris) per halaman. Satu segmen saja; detail memakai /<path>/<id>. */
+const ROUTE_PATHS: Record<string, string> = {
+  [HOME]: "/dashboard",
+  "Kesehatan Infrastruktur": "/infrastructure-health",
+  "Alert & Insiden": "/alerts",
+  "Notifikasi & Eskalasi": "/notifications",
+  Infrastruktur: "/infrastructure",
+  Database: "/databases",
+  "Storage & Kapasitas": "/storage",
+  "Availability & Performa": "/availability",
+  "Backup & Keamanan": "/backup-security",
+  "Inventaris Aset": "/assets",
+  "Lifecycle OS": "/os-lifecycle",
+  "Lisensi Software": "/software-licenses",
+  "Sertifikat SSL/TLS": "/certificates",
+  "Garansi Hardware": "/hardware-warranties",
+  "Kontrak Vendor": "/vendor-contracts",
+  Laporan: "/reports",
+  "Audit Trail": "/audit-trail",
+  Administrasi: "/administration",
+}
+
 const routeConfig: Record<string, RouteDefinition> = {
-  "Pusat Kendali": { href: "#/pusat-kendali", eyebrow: "UTAMA" },
+  [HOME]: { href: ROUTE_PATHS[HOME], eyebrow: "UTAMA" },
   ...Object.fromEntries(
     navGroups.flatMap((group) =>
       group.items.map((item) => [
         item.label,
         {
-          href: `#/${item.label.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-")}`,
+          href: ROUTE_PATHS[item.label],
           eyebrow: group.mobileLabel,
-          parent: "Pusat Kendali",
+          parent: HOME,
         },
       ]),
     ),
   ),
   "Kesehatan Infrastruktur": {
-    href: "#/kesehatan-infrastruktur",
+    href: ROUTE_PATHS["Kesehatan Infrastruktur"],
     eyebrow: "MONITORING",
-    parent: "Pusat Kendali",
+    parent: HOME,
   },
 }
+
+const labelBySlug: Record<string, string> = Object.fromEntries(
+  Object.entries(routeConfig).map(([label, route]) => [route.href.slice(1), label]),
+)
+
+/** Halaman yang punya tampilan detail di /<halaman>/<id>. */
+const hasDetail = (label: string) =>
+  label === "Inventaris Aset" || label === "Alert & Insiden" || lifecyclePages.includes(label as LifecyclePageName)
+
+const detailHref = (label: string, id: string | null) =>
+  id ? `${routeConfig[label].href}/${encodeURIComponent(id)}` : routeConfig[label].href
 
 type DetailRoute = "asset" | "alert" | "lifecycle"
 
@@ -391,10 +427,8 @@ export default function App() {
       return false
     }
   })
-  const [active, setActive] = useState("Pusat Kendali")
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
-  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
-  const [selectedLifecycleId, setSelectedLifecycleId] = useState<string | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -448,51 +482,47 @@ export default function App() {
 
   const closeToast = useCallback(() => setToastVisible(false), [])
   const capabilities = currentUser ? roleCapabilities.find((item) => item.role === currentUser.role) : undefined
-  const visibleNavGroups = currentUser
-    ? navGroups
-        .map((group) => ({
-          ...group,
-          items: group.items.filter(
-            (item) =>
-              (item.label !== "Administrasi" || can(currentUser.role, "config")) &&
-              // Audit log hanya dapat dibaca ADMIN dan AUDITOR (dibatasi juga di backend).
-              (item.label !== "Audit Trail" || ["ADMIN", "AUDITOR"].includes(currentUser.backendRole)),
-          ),
-        }))
-        .filter((group) => group.items.length > 0)
-    : navGroups
+  const canOpen = (label: string) =>
+    !currentUser ||
+    ((label !== "Administrasi" || can(currentUser.role, "config")) &&
+      // Audit log hanya dapat dibaca ADMIN dan AUDITOR (dibatasi juga di backend).
+      (label !== "Audit Trail" || ["ADMIN", "AUDITOR"].includes(currentUser.backendRole)))
+  const visibleNavGroups = navGroups
+    .map((group) => ({ ...group, items: group.items.filter((item) => canOpen(item.label)) }))
+    .filter((group) => group.items.length > 0)
+
+  // Halaman aktif dan detail yang dibuka dibaca dari URL: /<halaman>[/<id>].
+  const [slug, rawDetailId] = location.pathname.split("/").filter(Boolean)
+  const routeLabel = slug ? labelBySlug[slug] : undefined
+  const routeValid = Boolean(routeLabel && canOpen(routeLabel) && (!rawDetailId || hasDetail(routeLabel)))
+  const active = routeValid ? routeLabel! : HOME
+  const detailId = routeValid && rawDetailId ? decodeURIComponent(rawDetailId) : null
+  const selectedAssetId = active === "Inventaris Aset" ? detailId : null
+  const selectedAlertId = active === "Alert & Insiden" ? detailId : null
+  const selectedLifecycleId = lifecyclePages.includes(active as LifecyclePageName) ? detailId : null
+
+  // Alamat kosong, tidak dikenal, atau tanpa hak akses diarahkan ke Pusat Kendali.
+  useEffect(() => {
+    if (currentUser && !routeValid) navigate(routeConfig[HOME].href, { replace: true })
+  }, [currentUser, routeValid, navigate])
+
   const notifications = read("notifications")
   const alerts = read("alerts")
   const unreadCount = notifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
-  const clearDetailRoutes = () => {
-    setSelectedAssetId(null)
-    setSelectedAlertId(null)
-    setSelectedLifecycleId(null)
-  }
-  const navigateTo = (label: string) => {
-    clearDetailRoutes()
-    setActive(label)
+  const go = (href: string) => {
     setMobileNavOpen(false)
-    window.scrollTo({ top: 0 })
-  }
-  const navigateHref = (href: string) => {
-    const destination = Object.entries(routeConfig).find(([, route]) => route.href === href)?.[0]
-    if (destination) navigateTo(destination)
-  }
-  const handleSearchSelect = (target: GlobalSearchTarget) => {
-    clearDetailRoutes()
-    setMobileNavOpen(false)
-    if (target.kind === "asset") {
-      setSelectedAssetId(target.id)
-      setActive("Inventaris Aset")
-    } else if (target.kind === "alert") {
-      setSelectedAlertId(target.id)
-      setActive("Alert & Insiden")
-    } else {
-      setSelectedLifecycleId(target.id)
-      setActive(target.page)
+    if (href !== location.pathname) {
+      navigate(href)
+      window.scrollTo({ top: 0 })
     }
-    window.scrollTo({ top: 0 })
+  }
+  const navigateTo = (label: string) => go(routeConfig[label]?.href ?? routeConfig[HOME].href)
+  const navigateHref = (href: string) => go(href)
+  const openDetail = (label: string, id: string | null) => go(detailHref(label, id))
+  const handleSearchSelect = (target: GlobalSearchTarget) => {
+    if (target.kind === "asset") openDetail("Inventaris Aset", target.id)
+    else if (target.kind === "alert") openDetail("Alert & Insiden", target.id)
+    else openDetail(target.page, target.id)
   }
   const handleNotificationClick = (notification: NotificationItem) => {
     if (!readNotificationIds.includes(notification.id)) {
@@ -505,9 +535,7 @@ export default function App() {
     const alertIdMatch = notification.alertId || notification.title.match(/ALT-\d+/i)?.[0]?.toUpperCase()
 
     if (alertIdMatch) {
-      clearDetailRoutes()
-      setSelectedAlertId(alertIdMatch)
-      setActive("Alert & Insiden")
+      openDetail("Alert & Insiden", alertIdMatch)
     } else {
       navigateTo("Notifikasi & Eskalasi")
     }
@@ -523,7 +551,7 @@ export default function App() {
   const detailParent = detailRoute ? detailRouteConfig[detailRoute].parent(active) : null
   const selectedAlert =
     detailRoute === "alert" && selectedAlertId ? alerts.find((a) => a.id === selectedAlertId) : undefined
-  const currentRoute = routeConfig[active] ?? routeConfig["Pusat Kendali"]
+  const currentRoute = routeConfig[active] ?? routeConfig[HOME]
   const pageTitle =
     detailRoute === "asset"
       ? selectedAssetId!
@@ -548,10 +576,8 @@ export default function App() {
     return (
       <>
         <LoginPage
-          onSuccess={(user) => {
-            setCurrentUser(user)
-            navigateTo("Pusat Kendali")
-          }}
+          // Tetap di alamat yang dibuka sebelum login (mis. tautan ke detail alert).
+          onSuccess={setCurrentUser}
         />
         <Toaster />
       </>
@@ -736,7 +762,7 @@ export default function App() {
                 ) : active === "Kesehatan Infrastruktur" ? (
                   <InfrastructureHealthPage />
                 ) : active === "Inventaris Aset" ? (
-                  <AssetInventory selectedId={selectedAssetId} onSelectedIdChange={setSelectedAssetId} />
+                  <AssetInventory selectedId={selectedAssetId} onSelectedIdChange={(id) => openDetail(active, id)} />
                 ) : active === "Backup & Keamanan" ? (
                   <BackupSecurityPage />
                 ) : monitoringPages.includes(active as MonitoringName) ? (
@@ -745,10 +771,10 @@ export default function App() {
                   <LifecyclePage
                     name={active as LifecyclePageName}
                     selectedId={selectedLifecycleId}
-                    onSelectedIdChange={setSelectedLifecycleId}
+                    onSelectedIdChange={(id) => openDetail(active, id)}
                   />
                 ) : active === "Alert & Insiden" ? (
-                  <AlertIncidentPage selectedId={selectedAlertId} onSelectedIdChange={setSelectedAlertId} />
+                  <AlertIncidentPage selectedId={selectedAlertId} onSelectedIdChange={(id) => openDetail(active, id)} />
                 ) : active === "Notifikasi & Eskalasi" ? (
                   <NotificationEscalationPage />
                 ) : active === "Laporan" ? (
