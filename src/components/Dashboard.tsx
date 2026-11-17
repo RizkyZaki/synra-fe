@@ -1,7 +1,6 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react"
 import { motion } from "motion/react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { useAccess } from "../lib/useAccess"
 import { useSynraStore, useUtilization } from "../lib/useSynraStore"
 import { formatDateTime } from "../lib/backend"
 import { ApiErrorBanner, CardHeading, GlassCard, KpiCard, SeverityBadge } from "./ui"
@@ -636,51 +635,7 @@ function LocationStatus() {
   )
 }
 
-function ExecutiveSummary() {
-  const { read, helpers } = useSynraStore()
-  const alerts = [...read("alerts")]
-    .filter((alert) => alert.status !== "Ditutup")
-    .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
-    .slice(0, 3)
-  const assets = read("assets")
-  const k = helpers.dashboardKpi()
-  const online = assets.filter((asset) => asset.status === "Online").length
-
-  return (
-    <GlassCard className="col-span-12 overflow-hidden p-0">
-      <div className="grid gap-px bg-border md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div className="bg-card p-5">
-          <p className="type-label mb-3 text-primary">Ringkasan eksekutif · 3 alert teratas</p>
-          {alerts.length === 0 ? (
-            <p className="type-meta">Tidak ada alert terbuka.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {alerts.map((alert) => (
-                <li key={alert.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate">{alert.name}</span>
-                  <SeverityBadge severity={alert.severity} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        {[
-          ["Aset daring", `${online}/${assets.length}`],
-          ["Host stale", String(k.stale)],
-          ["Availability 24 jam", k.availabilityPct === null ? "—" : `${k.availabilityPct.toLocaleString("id-ID")}%`],
-        ].map(([label, value]) => (
-          <div key={label} className="flex flex-col justify-center bg-card p-5">
-            <span className="type-meta">{label}</span>
-            <NumberTicker value={value} className="mt-1 text-2xl font-semibold tracking-tight" />
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  )
-}
-
 export default function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const { can } = useAccess()
   const { error } = useSynraStore()
   const kpiCards = useKpiCards()
 
@@ -713,7 +668,6 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: string) =
         ))}
       </div>
 
-      {can("dashboard.executive") && <ExecutiveSummary />}
       <UtilizationChart />
       <InsightPanel onNavigate={onNavigate} />
       <AssetDistribution />
