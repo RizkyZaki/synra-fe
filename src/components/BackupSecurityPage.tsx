@@ -497,8 +497,8 @@ function SecuritySection() {
 }
 
 export default function BackupSecurityPage() {
-  const { user } = useAccess()
-  const canSeeSecurity = user.backendRole === "ADMIN" || user.backendRole === "AUDITOR"
+  const { can } = useAccess()
+  const canSeeSecurity = can("security.view")
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <section className="flex min-w-0 flex-col gap-4">
@@ -510,7 +510,7 @@ export default function BackupSecurityPage() {
         {canSeeSecurity ? (
           <SecuritySection />
         ) : (
-          <EmptyState icon={Lock} title="Khusus Administrator dan Auditor" description="Ringkasan keamanan memuat username dan alamat IP percobaan login, sehingga aksesnya dibatasi." />
+          <EmptyState icon={Lock} title="Butuh hak Overview keamanan" description="Ringkasan keamanan memuat username dan alamat IP percobaan login, sehingga aksesnya dibatasi. Minta Administrator menambahkan hak ini ke role Anda." />
         )}
       </section>
     </div>

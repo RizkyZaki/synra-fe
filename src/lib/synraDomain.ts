@@ -141,7 +141,8 @@ export interface User {
   password: string
   role: string
   status: "Aktif" | "Nonaktif"
-  backendRole?: "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+  roleId?: string
+  roleCode?: string
   isLocked?: boolean
 }
 

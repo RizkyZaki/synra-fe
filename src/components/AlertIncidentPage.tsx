@@ -205,9 +205,9 @@ export default function AlertIncidentPage({
 }) {
   const { read, actions, error } = useSynraStore()
   const { can } = useAccess()
-  const canEdit = can("edit")
-  const canApprove = can("approve")
-  const canConfig = can("config")
+  const canEdit = can("alerts.handle")
+  const canApprove = can("alerts.review")
+  const canConfig = can("alerts.evaluate")
   const alerts = read("alerts")
   const [toast, setToast] = useState("")
   const [busy, setBusy] = useState(false)
@@ -372,7 +372,7 @@ export default function AlertIncidentPage({
                   </p>
                   <p className="type-body mt-1 text-muted-foreground">
                     Masalahnya tidak lagi terdeteksi, tetapi kejadiannya tetap perlu ditindaklanjuti: cari dan catat penyebabnya,
-                    lalu ajukan penutupan. Supervisor dapat langsung menutup alert bila tidak perlu tindakan lanjutan. Bila masalah
+                    lalu ajukan penutupan. Reviewer (hak Review alert) dapat langsung menutup alert bila tidak perlu tindakan lanjutan. Bila masalah
                     muncul lagi sebelum ditutup, penanda ini hilang dan alert yang sama kembali aktif.
                   </p>
                 </div>
@@ -510,7 +510,7 @@ export default function AlertIncidentPage({
                 </div>
               )}
               {selected.status === "Menunggu Review" && !canApprove && (
-                <p className="type-body text-muted-foreground">Menunggu persetujuan Supervisor atau Administrator.</p>
+                <p className="type-body text-muted-foreground">Menunggu persetujuan reviewer (hak Review alert).</p>
               )}
               {selected.status === "Ditutup" && (
                 <p className="type-body flex items-center gap-2 text-muted-foreground">

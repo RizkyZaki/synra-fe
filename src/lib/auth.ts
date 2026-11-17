@@ -1,28 +1,23 @@
 import { apiFetch, SESSION_EVENT, tokenStore } from "./api"
 import type { SessionUser } from "./useAccess"
 
-export type BackendRole = "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+export interface RoleRef {
+  id: string
+  code: string
+  name: string
+}
 
 interface BackendUser {
   id: string
   username: string
   fullName: string
-  role: BackendRole
+  role: RoleRef
+  permissions: string[]
 }
 
 interface LoginResponse {
   accessToken: string
   user: BackendUser
-}
-
-// Role backend dipetakan ke role tampilan FE agar aturan akses di seed.ts tetap dipakai.
-// MANAGEMENT memakai "Manager" (read-only + ringkasan eksekutif); hak approve dicabut di AccessProvider.
-const ROLE_LABEL: Record<BackendRole, string> = {
-  ADMIN: "Administrator",
-  SUPERVISOR: "Supervisor",
-  OPERATOR: "NOC",
-  MANAGEMENT: "Manager",
-  AUDITOR: "Auditor",
 }
 
 function toSessionUser(user: BackendUser): SessionUser {
@@ -31,8 +26,10 @@ function toSessionUser(user: BackendUser): SessionUser {
     name: user.fullName,
     email: user.username,
     username: user.username,
-    role: ROLE_LABEL[user.role],
-    backendRole: user.role,
+    role: user.role.name,
+    roleId: user.role.id,
+    roleCode: user.role.code,
+    permissions: user.permissions,
     initials: user.fullName
       .split(/\s+/)
       .filter(Boolean)
@@ -64,6 +61,14 @@ export async function restoreSession(): Promise<SessionUser | null> {
     tokenStore.clear()
     return null
   }
+}
+
+/** Dipicu setelah role atau hak akses diubah, supaya menu dan tombol user yang login ikut diperbarui. */
+export const ACCESS_CHANGED_EVENT = "synra:access-changed"
+
+/** Membaca ulang role dan hak akses user yang sedang login (mis. setelah admin mengubah role). */
+export async function fetchSessionUser(): Promise<SessionUser> {
+  return toSessionUser(await apiFetch<BackendUser>("/auth/me"))
 }
 
 export function logout() {

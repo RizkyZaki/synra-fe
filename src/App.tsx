@@ -56,18 +56,19 @@ import NotificationEscalationPage from "./components/NotificationEscalationPage"
 import ReportsPage from "./components/ReportsPage"
 import InfrastructureHealthPage from "./components/InfrastructureHealthPage"
 import GlobalSearch, { type GlobalSearchTarget } from "./components/GlobalSearch"
-import { AccessProvider, type SessionUser } from "./lib/useAccess"
+import { AccessProvider, accessFor, type SessionUser } from "./lib/useAccess"
 import { UNAUTHORIZED_EVENT } from "./lib/api"
-import { logout, restoreSession } from "./lib/auth"
+import { ACCESS_CHANGED_EVENT, fetchSessionUser, logout, restoreSession } from "./lib/auth"
 import { useSynraStore } from "./lib/useSynraStore"
 import type { NotificationItem } from "./lib/synraDomain"
-import { can, roleCapabilities } from "./seed"
 import { cn } from "./lib/utils"
 
 type Theme = "dark" | "light"
 const LEGACY_AUTH_STORAGE_KEY = "synra-auth-user-id"
 const READ_NOTIFICATIONS_KEY = "synra-read-notification-ids"
 const SIDEBAR_KEY = "synra-sidebar-collapsed"
+/** Hak akses dibaca ulang berkala supaya perubahan role dari admin terlihat tanpa login ulang. */
+const ACCESS_REFRESH_MS = 60_000
 const monitoringPages: MonitoringName[] = [
   "Infrastruktur",
   "Database",
@@ -454,6 +455,29 @@ export default function App() {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [])
 
+  // Perbarui role dan hak akses: berkala dan segera setelah role diubah di Administrasi.
+  const signedIn = currentUser !== null
+  useEffect(() => {
+    if (!signedIn) return
+    const reload = () => {
+      fetchSessionUser()
+        .then((next) =>
+          setCurrentUser((current) =>
+            current && JSON.stringify(current) === JSON.stringify(next) ? current : next,
+          ),
+        )
+        .catch(() => {
+          /* 401 ditangani UNAUTHORIZED_EVENT; gangguan jaringan dicoba lagi berikutnya */
+        })
+    }
+    window.addEventListener(ACCESS_CHANGED_EVENT, reload)
+    const timer = window.setInterval(reload, ACCESS_REFRESH_MS)
+    return () => {
+      window.removeEventListener(ACCESS_CHANGED_EVENT, reload)
+      window.clearInterval(timer)
+    }
+  }, [signedIn])
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     document.documentElement.classList.toggle("dark", theme === "dark")
@@ -481,12 +505,9 @@ export default function App() {
   }, [])
 
   const closeToast = useCallback(() => setToastVisible(false), [])
-  const capabilities = currentUser ? roleCapabilities.find((item) => item.role === currentUser.role) : undefined
-  const canOpen = (label: string) =>
-    !currentUser ||
-    ((label !== "Administrasi" || can(currentUser.role, "config")) &&
-      // Audit log hanya dapat dibaca ADMIN dan AUDITOR (dibatasi juga di backend).
-      (label !== "Audit Trail" || ["ADMIN", "AUDITOR"].includes(currentUser.backendRole)))
+  const access = currentUser ? accessFor(currentUser) : null
+  // Menu mengikuti hak akses role (diatur di Administrasi → Role & Hak Akses; dibatasi juga di backend).
+  const canOpen = (label: string) => !access || access.canOpen(label)
   const visibleNavGroups = navGroups
     .map((group) => ({ ...group, items: group.items.filter((item) => canOpen(item.label)) }))
     .filter((group) => group.items.length > 0)
@@ -755,7 +776,7 @@ export default function App() {
                 }
                 backTo={backTo}
                 onNavigate={navigateHref}
-                readOnly={Boolean(capabilities?.readOnly)}
+                readOnly={Boolean(access?.readOnly)}
               >
                 {active === "Pusat Kendali" ? (
                   <Dashboard onNavigate={navigateTo} />

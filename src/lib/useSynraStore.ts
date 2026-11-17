@@ -36,13 +36,13 @@ import {
   type AssetDto,
   type AuditDto,
   type AvailabilityDto,
-  type BackendRole,
   type AssetCategory,
   type HostDto,
   type LifecycleCategoryDto,
   type LifecycleItemDto,
   type LifecycleStatusDto,
   type RenewalDto,
+  type RoleDto,
   type SupervisorDto,
   type NotificationDto,
   type Paginated,
@@ -59,6 +59,8 @@ import {
   toRules,
   toUser,
 } from "./backend"
+import { ACCESS_CHANGED_EVENT } from "./auth"
+import type { PermissionGroup } from "./permissions"
 
 export type SynraCollection = keyof SynraState
 export type SynraItem<K extends SynraCollection> = SynraState[K][number]
@@ -83,6 +85,9 @@ export interface ApiData {
   availability: AvailabilityDto | null
   hosts: HostDto[]
   supervisors: SupervisorDto[]
+  /** Role dan katalog hak akses (kosong bila role tidak berhak membacanya). */
+  roles: RoleDto[]
+  permissionCatalog: PermissionGroup[]
   /** Batas sisa hari per level urgensi siklus hidup (dari backend, default bila gagal dimuat). */
   expiryThresholds: ExpiryThresholds
   telegramConfigured: boolean | null
@@ -128,6 +133,12 @@ export interface LifecycleInput {
   notes?: string
 }
 
+export interface RoleInput {
+  name: string
+  description?: string
+  permissions: string[]
+}
+
 export type AlertTransition = "acknowledge" | "start" | "submit-review" | "return" | "close"
 
 const seedHelpers = {
@@ -152,8 +163,11 @@ interface SynraStore {
     updateAsset: (apiId: string, input: Partial<AssetInput> & { isActive?: boolean }) => Promise<void>
     transitionAlert: (apiId: string, action: AlertTransition, body?: { note?: string; evidence?: string }) => Promise<void>
     evaluateAlerts: () => Promise<{ created: number; updated: number }>
-    createUser: (input: { username: string; fullName: string; password: string; role: BackendRole }) => Promise<void>
-    updateUser: (id: string, input: { fullName?: string; role?: BackendRole; isActive?: boolean }) => Promise<void>
+    createUser: (input: { username: string; fullName: string; password: string; roleId: string }) => Promise<void>
+    updateUser: (id: string, input: { fullName?: string; roleId?: string; isActive?: boolean }) => Promise<void>
+    createRole: (input: RoleInput) => Promise<void>
+    updateRole: (id: string, input: Partial<RoleInput>) => Promise<void>
+    deleteRole: (id: string) => Promise<void>
     unlockUser: (id: string) => Promise<void>
     updateRule: (id: string, value: number) => Promise<void>
     /** Teks kosong = kembali ke rekomendasi default dari server. */
@@ -207,6 +221,8 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
     availability: null,
     hosts: [],
     supervisors: [],
+    roles: [],
+    permissionCatalog: [],
     expiryThresholds: DEFAULT_EXPIRY_THRESHOLDS,
     telegramConfigured: null,
   })
@@ -227,7 +243,7 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
     inFlight.current = true
     setLoading(true)
     try {
-      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors, lifecycle, renewals, expiryThresholds] =
+      const [assets, alerts, rules, hosts, summary, availability, notifications, notifStatus, users, audit, supervisors, lifecycle, renewals, expiryThresholds, roles, permissionCatalog] =
         await Promise.all([
           apiFetch<Paginated<AssetDto>>("/assets?limit=100"),
           apiFetch<Paginated<AlertDto>>("/alerts?limit=100"),
@@ -243,6 +259,8 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
           optional<Paginated<LifecycleItemDto>>("/lifecycle?limit=100"),
           optional<Paginated<RenewalDto>>("/lifecycle/renewals?limit=100"),
           optional<ExpiryThresholds>("/lifecycle/thresholds"),
+          optional<RoleDto[]>("/roles"),
+          optional<PermissionGroup[]>("/roles/permissions"),
         ])
       setRemote({
         lifecycle: lifecycle?.data.map(toLifecycle) ?? [],
@@ -259,6 +277,8 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
         availability,
         hosts,
         supervisors: supervisors ?? [],
+        roles: roles ?? [],
+        permissionCatalog: permissionCatalog ?? [],
         expiryThresholds: expiryThresholds ?? DEFAULT_EXPIRY_THRESHOLDS,
         telegramConfigured: notifStatus?.telegramConfigured ?? null,
       })
@@ -305,7 +325,18 @@ export function SynraStoreProvider({ children }: { children: ReactNode }) {
       transitionAlert: (apiId, action, body = {}) => mutate(`/alerts/${apiId}/${action}`, "PATCH", body),
       evaluateAlerts: () => mutate("/alerts/evaluate", "POST"),
       createUser: (input) => mutate("/users", "POST", input),
-      updateUser: (id, input) => mutate(`/users/${id}`, "PATCH", input),
+      // Muat ulang sesi supaya nama dan role user yang login tetap sinkron bila yang diubah dirinya sendiri.
+      updateUser: async (id, input) => {
+        await mutate(`/users/${id}`, "PATCH", input)
+        window.dispatchEvent(new Event(ACCESS_CHANGED_EVENT))
+      },
+      createRole: (input) => mutate("/roles", "POST", input),
+      updateRole: async (id, input) => {
+        await mutate(`/roles/${id}`, "PATCH", input)
+        // Hak akses role yang sedang dipakai bisa ikut berubah: muat ulang sesi.
+        window.dispatchEvent(new Event(ACCESS_CHANGED_EVENT))
+      },
+      deleteRole: (id) => mutate(`/roles/${id}`, "DELETE"),
       unlockUser: (id) => mutate(`/users/${id}/unlock`, "POST"),
       updateRule: (id, value) => mutate(`/thresholds/rule/${id}`, "PATCH", { value }),
       updateRuleRecommendation: (id, recommendation) => mutate(`/thresholds/rule/${id}`, "PATCH", { recommendation }),

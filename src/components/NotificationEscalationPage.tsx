@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils"
 export default function NotificationEscalationPage() {
   const { read, actions, api, error } = useSynraStore()
   const { can } = useAccess()
-  const canConfig = can("config")
+  const canConfig = can("notifications.test")
   const notifications = read("notifications")
   const { page, setPage, totalPages, startIndex, endIndex, totalRows, paginatedRows } = usePagination(notifications, 10)
   const [toast, setToast] = useState("")

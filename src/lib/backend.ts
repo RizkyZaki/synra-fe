@@ -12,7 +12,6 @@ import type {
   User,
 } from "./synraDomain"
 
-export type BackendRole = "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
 export type BackendSeverity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
 export type BackendAlertStatus =
   | "NEW"
@@ -204,8 +203,8 @@ export interface SecurityOverviewDto {
     byIp: { key: string; count: number }[]
     perHour: { hour: string; count: number }[]
   }
-  lockedAccounts: { id: string; username: string; fullName: string; role: BackendRole; lockedUntil: string }[]
-  dormantAccounts: { id: string; username: string; fullName: string; role: BackendRole; lastLoginAt: string | null }[]
+  lockedAccounts: { id: string; username: string; fullName: string; role: string; lockedUntil: string }[]
+  dormantAccounts: { id: string; username: string; fullName: string; role: string; lastLoginAt: string | null }[]
   certificates: { id: string; code: string; name: string; expiryDate: string; picName: string | null; location: string | null; daysLeft: number }[]
   operatingSystems: { id: string; code: string; name: string; expiryDate: string; quantity: number; location: string | null; daysLeft: number }[]
   sensitiveChanges: { id: string; action: string; actorUsername: string; entity: string | null; entityId: string | null; ipAddress: string | null; createdAt: string }[]
@@ -294,9 +293,22 @@ export interface UserDto {
   id: string
   username: string
   fullName: string
-  role: BackendRole
+  role: { id: string; code: string; name: string }
   isActive: boolean
   isLocked: boolean
+}
+
+export interface RoleDto {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  permissions: string[]
+  /** Role bawaan: tidak dapat dihapus */
+  isSystem: boolean
+  /** Role ADMIN: hak akses selalu penuh */
+  locked: boolean
+  userCount: number
 }
 
 export interface ThresholdLevelDto {
@@ -428,22 +440,6 @@ export const STATUS_TO_FE: Record<BackendAlertStatus, AlertStatus> = {
   PENDING_REVIEW: "Menunggu Review",
   CLOSED: "Ditutup",
 }
-
-export const ROLE_LABEL: Record<BackendRole, string> = {
-  ADMIN: "Administrator",
-  SUPERVISOR: "Supervisor",
-  OPERATOR: "NOC",
-  MANAGEMENT: "Manager",
-  AUDITOR: "Auditor",
-}
-
-export const ROLE_OPTIONS: { value: BackendRole; label: string }[] = [
-  { value: "ADMIN", label: "Administrator (ADMIN)" },
-  { value: "SUPERVISOR", label: "Supervisor (SUPERVISOR)" },
-  { value: "OPERATOR", label: "Operator / NOC (OPERATOR)" },
-  { value: "MANAGEMENT", label: "Manajemen, read-only (MANAGEMENT)" },
-  { value: "AUDITOR", label: "Auditor (AUDITOR)" },
-]
 
 export const METRIC_LABEL: Record<RuleMetric, string> = {
   CPU: "CPU",
@@ -593,9 +589,10 @@ export function toUser(u: UserDto): User {
     name: u.fullName,
     email: u.username,
     password: "",
-    role: ROLE_LABEL[u.role],
+    role: u.role.name,
     status: u.isActive ? "Aktif" : "Nonaktif",
-    backendRole: u.role,
+    roleId: u.role.id,
+    roleCode: u.role.code,
     isLocked: u.isLocked,
   }
 }

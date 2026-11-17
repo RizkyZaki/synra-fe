@@ -39,7 +39,7 @@ type StepDraft = { afterMinutes: string; targetLabel: string; mention: string; t
  */
 export function EscalationMatrix({ onOpenAlert }: { onOpenAlert?: (code: string) => void }) {
   const { can } = useAccess()
-  const canConfig = can("config")
+  const canConfig = can("escalation.manage")
   const [policies, setPolicies] = useState<EscalationPolicyDto[] | null>(null)
   const [active, setActive] = useState<EscalationActiveDto | null>(null)
   const [error, setError] = useState("")
@@ -296,7 +296,7 @@ function PolicyEditor({ policy, onClose, onSaved }: { policy: EscalationPolicyDt
           <Button variant="outline" onClick={onClose}>
             Batal
           </Button>
-          <Button onClick={() => void save()} {...restrictedAction(can("config") && !saving)}>
+          <Button onClick={() => void save()} {...restrictedAction(can("escalation.manage") && !saving)}>
             {saving ? "Menyimpan…" : "Simpan"}
           </Button>
         </>

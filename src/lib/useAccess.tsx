@@ -1,5 +1,5 @@
-import { createContext, type ReactNode, useContext } from "react"
-import { can, roleCapabilities, type Role } from "../seed"
+import { createContext, type ReactNode, useContext, useMemo } from "react"
+import { ADMIN_ROLE_CODE, isReadOnly, MENU_PERMISSION, type Permission } from "./permissions"
 
 export const NO_ACCESS_MESSAGE =
   "Anda tidak memiliki akses untuk tindakan ini"
@@ -10,19 +10,42 @@ export type SessionUser = {
   /** Backend memakai username; field ini dipertahankan untuk komponen yang menampilkan email. */
   email: string
   username: string
-  /** Label role tampilan FE (mis. "Administrator") yang dipakai aturan akses di seed.ts */
+  /** Nama role untuk tampilan, mis. "Supervisor Jatim" */
   role: string
-  backendRole: "ADMIN" | "SUPERVISOR" | "OPERATOR" | "MANAGEMENT" | "AUDITOR"
+  roleId: string
+  roleCode: string
+  /** Hak akses efektif dari backend (ADMIN = semua) */
+  permissions: string[]
   initials: string
 }
 
 interface AccessContextValue {
   user: SessionUser
-  capabilities: (typeof roleCapabilities)[number]
-  can: (action: "edit" | "approve" | "config") => boolean
+  /** Benar bila role punya hak akses ini */
+  can: (permission: Permission) => boolean
+  /** Benar bila role punya salah satu hak akses ini */
+  canAny: (...permissions: Permission[]) => boolean
+  canOpen: (menuLabel: string) => boolean
+  /** Role tanpa hak tulis apa pun */
+  readOnly: boolean
 }
 
 const AccessContext = createContext<AccessContextValue | null>(null)
+
+export function accessFor(user: SessionUser): Omit<AccessContextValue, "user"> {
+  const granted = new Set(user.permissions)
+  const can = (permission: Permission) => user.roleCode === ADMIN_ROLE_CODE || granted.has(permission)
+  const canAny = (...permissions: Permission[]) => permissions.some(can)
+  return {
+    can,
+    canAny,
+    canOpen: (label) => {
+      const required = MENU_PERMISSION[label]
+      return !required || canAny(...required)
+    },
+    readOnly: user.roleCode !== ADMIN_ROLE_CODE && isReadOnly(user.permissions),
+  }
+}
 
 export function AccessProvider({
   user,
@@ -31,27 +54,8 @@ export function AccessProvider({
   user: SessionUser
   children: ReactNode
 }) {
-  const baseCapabilities =
-    roleCapabilities.find((item) => item.role === user.role) ??
-    roleCapabilities.find((item) => item.role === "Auditor")!
-  // MANAGEMENT di backend bersifat read-only, jadi hak approve dari role "Manager" dicabut.
-  const readOnlyManagement = user.backendRole === "MANAGEMENT"
-  const capabilities = readOnlyManagement
-    ? { ...baseCapabilities, approve: false, readOnly: true }
-    : baseCapabilities
-
-  return (
-    <AccessContext.Provider
-      value={{
-        user,
-        capabilities,
-        can: (action) =>
-          readOnlyManagement ? false : can(user.role as Role, action),
-      }}
-    >
-      {children}
-    </AccessContext.Provider>
-  )
+  const value = useMemo(() => ({ user, ...accessFor(user) }), [user])
+  return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>
 }
 
 export function useAccess() {

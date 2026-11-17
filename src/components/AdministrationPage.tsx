@@ -1,10 +1,12 @@
-import { CalendarClock, Lock, NotebookPen, Pencil, Plus, Save, Server, SlidersHorizontal, Trash2, UserRound, Users } from "lucide-react"
+import { CalendarClock, Lock, NotebookPen, Pencil, Plus, Save, Server, ShieldCheck, SlidersHorizontal, Trash2, UserRound, Users } from "lucide-react"
 import { motion } from "motion/react"
 import { useState } from "react"
 import { restrictedAction, useAccess } from "../lib/useAccess"
 import { useSynraStore } from "../lib/useSynraStore"
 import { ApiError } from "../lib/api"
-import { METRIC_LABEL, ROLE_OPTIONS, type BackendRole, type HostDto } from "../lib/backend"
+import { METRIC_LABEL, type HostDto, type RoleDto } from "../lib/backend"
+import type { Permission } from "../lib/permissions"
+import RolesAdministration from "./RolesAdministration"
 import type { ExpiryThresholds, Rule, User } from "../lib/synraDomain"
 import {
   CardHeading,
@@ -38,7 +40,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-type AdminTab = "Parameter EWS" | "Host" | "Pengguna" | "Profil"
+type AdminTab = "Parameter EWS" | "Host" | "Pengguna" | "Role & Hak Akses" | "Profil"
 
 const iconProps = {
   size: 16,
@@ -49,6 +51,10 @@ const iconProps = {
 const errorText = (e: unknown, fallback: string) =>
   e instanceof ApiError ? (e.errors.length ? e.errors.join(" ") : e.message) : fallback
 
+/** Pilihan role untuk form pengguna: nama role, ditandai bila bawaan. */
+const roleItems = (roles: RoleDto[]) =>
+  Object.fromEntries(roles.map((r) => [r.id, r.isSystem ? r.name : `${r.name} (kustom)`]))
+
 function AddUserDrawer({
   onClose,
   onSaved,
@@ -56,11 +62,12 @@ function AddUserDrawer({
   onClose: () => void
   onSaved: () => void
 }) {
-  const { actions } = useSynraStore()
+  const { api, actions } = useSynraStore()
+  const roles = api.roles
   const [fullName, setFullName] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<BackendRole>("OPERATOR")
+  const [roleId, setRoleId] = useState(() => (roles.find((r) => r.code === "OPERATOR") ?? roles[0])?.id ?? "")
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -72,7 +79,7 @@ function AddUserDrawer({
           event.preventDefault()
           setSaving(true)
           try {
-            await actions.createUser({ username, fullName, password, role })
+            await actions.createUser({ username, fullName, password, roleId })
             onSaved()
             onClose()
           } catch (e) {
@@ -102,18 +109,15 @@ function AddUserDrawer({
             required
           />
         </FormField>
-        <FormField label="Role">
-          <Select items={Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]))}
-            value={role}
-            onValueChange={(value) => setRole((value ?? "OPERATOR") as BackendRole)}
-          >
+        <FormField label="Role" hint="Hak akses tiap role diatur di tab Role & Hak Akses">
+          <Select items={roleItems(roles)} value={roleId} onValueChange={(value) => setRoleId(value ?? "")}>
             <SelectTrigger className="w-full">
-              <SelectValue />
+              <SelectValue placeholder="Pilih role" />
             </SelectTrigger>
             <SelectContent>
-              {ROLE_OPTIONS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
+              {roles.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {roleItems([item])[item.id]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -128,7 +132,7 @@ function AddUserDrawer({
           <Button type="button" variant="outline" onClick={onClose}>
             Batal
           </Button>
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving || !roleId}>
             {saving ? "Menyimpan…" : "Tambah Pengguna"}
           </Button>
         </div>
@@ -251,7 +255,7 @@ function RecommendationDialog({
 function EwsParameters() {
   const { read, actions } = useSynraStore()
   const { can } = useAccess()
-  const canConfig = can("config")
+  const canConfig = can("thresholds.manage")
   const rules = read("rules")
   const [draft, setDraft] = useState<Record<string, number>>({})
   const [toast, setToast] = useState("")
@@ -327,8 +331,7 @@ function EwsParameters() {
         {!canConfig && (
           <div role="note" className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-warning">
             <Lock size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-            Hanya akun Administrator yang dapat mengubah threshold. Anda masuk sebagai role lain, jadi nilai di bawah hanya bisa
-            dilihat.
+            Role Anda tidak memiliki hak Ubah parameter, jadi nilai di bawah hanya bisa dilihat.
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -457,11 +460,11 @@ function HostDrawer({
   )
 }
 
-/** Daftar Host (bank/instansi) beserta jumlah aset. Kelola: ADMIN dan SUPERVISOR. */
+/** Daftar Host (bank/instansi) beserta jumlah aset. Kelola: hak Kelola host & aset. */
 function HostsAdministration() {
   const { api, actions } = useSynraStore()
-  const { user } = useAccess()
-  const canManage = user.backendRole === "ADMIN" || user.backendRole === "SUPERVISOR"
+  const { can } = useAccess()
+  const canManage = can("assets.manage")
   const hosts = api.hosts
   /** undefined = drawer tertutup, null = tambah, HostDto = ubah */
   const [editing, setEditing] = useState<HostDto | null | undefined>(undefined)
@@ -526,7 +529,7 @@ function HostsAdministration() {
         {!canManage && (
           <div role="note" className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-warning">
             <Lock size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-            Hanya Administrator dan Supervisor yang dapat menambah, mengubah, atau menghapus Host.
+            Role Anda tidak memiliki hak Kelola host & aset, jadi Host hanya bisa dilihat.
           </div>
         )}
         <DataTable columns={columns} rows={hosts} rowKey={(host) => host.id} />
@@ -558,7 +561,7 @@ const EXPIRY_LEVEL_ROWS: { key: keyof ExpiryThresholds; label: string; tone: str
 function ExpiryThresholdSettings() {
   const { api, actions } = useSynraStore()
   const { can } = useAccess()
-  const canConfig = can("config")
+  const canConfig = can("thresholds.manage")
   const current = api.expiryThresholds
   const [draft, setDraft] = useState<Partial<ExpiryThresholds>>({})
   const [toast, setToast] = useState("")
@@ -638,9 +641,10 @@ function ExpiryThresholdSettings() {
 }
 
 function UsersAdministration() {
-  const { read, actions } = useSynraStore()
+  const { read, api, actions } = useSynraStore()
   const { user: me } = useAccess()
   const users = read("users")
+  const roles = api.roles
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [toast, setToast] = useState("")
 
@@ -667,7 +671,35 @@ function UsersAdministration() {
       ),
     },
     { key: "email", header: "Username", render: (user) => user.email },
-    { key: "role", header: "Role", render: (user) => <span className="inline-flex rounded-md border border-border bg-muted px-2 py-0.5 text-xs">{user.backendRole ?? user.role}</span> },
+    {
+      key: "role",
+      header: "Role",
+      render: (user) =>
+        user.id === me.id || !user.roleId || roles.length === 0 ? (
+          <span className="inline-flex rounded-md border border-border bg-muted px-2 py-0.5 text-xs">{user.role}</span>
+        ) : (
+          <Select
+            items={roleItems(roles)}
+            value={user.roleId}
+            onValueChange={(value) => {
+              if (!value || value === user.roleId) return
+              const next = roles.find((r) => r.id === value)
+              void run(() => actions.updateUser(user.id, { roleId: value }), `Role ${user.name} diubah ke ${next?.name ?? "role baru"}`)
+            }}
+          >
+            <SelectTrigger size="sm" className="w-44" aria-label={`Role ${user.name}`} onClick={(event) => event.stopPropagation()}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {roles.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {roleItems([item])[item.id]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+    },
     {
       key: "status",
       header: "Status",
@@ -742,7 +774,9 @@ function UsersAdministration() {
 
 function ProfileAdministration() {
   const { actions } = useSynraStore()
-  const { user } = useAccess()
+  const { user, can } = useAccess()
+  // Mengubah nama memakai endpoint pengguna, jadi butuh hak Kelola pengguna.
+  const canRename = can("users.manage")
   const [name, setName] = useState(user.name)
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -777,13 +811,15 @@ function ProfileAdministration() {
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
           <CardHeading title="Profil" description={`@${user.username} · ${user.role}`} />
-          <FormField label="Nama">
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          <FormField label="Nama" hint={canRename ? undefined : "Nama diubah oleh pengelola pengguna"}>
+            <Input value={name} disabled={!canRename} onChange={(event) => setName(event.target.value)} />
           </FormField>
-          <Button className="self-start" onClick={() => void saveName()}>
-            <Save {...iconProps} />
-            Simpan Nama
-          </Button>
+          {canRename && (
+            <Button className="self-start" onClick={() => void saveName()}>
+              <Save {...iconProps} />
+              Simpan Nama
+            </Button>
+          )}
         </GlassCard>
 
         <GlassCard className="flex min-w-0 flex-col gap-5 p-5 md:p-6">
@@ -814,20 +850,25 @@ function ProfileAdministration() {
   )
 }
 
-const adminTabs: { id: AdminTab; icon: typeof SlidersHorizontal }[] = [
+const adminTabs: { id: AdminTab; icon: typeof SlidersHorizontal; permission?: Permission }[] = [
   { id: "Parameter EWS", icon: SlidersHorizontal },
   { id: "Host", icon: Server },
-  { id: "Pengguna", icon: Users },
+  { id: "Pengguna", icon: Users, permission: "users.manage" },
+  { id: "Role & Hak Akses", icon: ShieldCheck, permission: "roles.manage" },
   { id: "Profil", icon: UserRound },
 ]
 
 export default function AdministrationPage() {
-  const [tab, setTab] = useState<AdminTab>("Parameter EWS")
+  const { can } = useAccess()
+  const tabs = adminTabs.filter((t) => !t.permission || can(t.permission))
+  const [selectedTab, setTab] = useState<AdminTab>("Parameter EWS")
+  // Tab yang hak aksesnya baru dicabut jatuh kembali ke tab pertama.
+  const tab = tabs.some((t) => t.id === selectedTab) ? selectedTab : tabs[0].id
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <div role="tablist" aria-label="Administrasi" className="flex w-full overflow-x-auto rounded-xl border border-border bg-muted/50 p-1 sm:w-fit">
-        {adminTabs.map(({ id, icon: Icon }) => (
+        {tabs.map(({ id, icon: Icon }) => (
           <button
             key={id}
             role="tab"
@@ -859,6 +900,7 @@ export default function AdministrationPage() {
       )}
       {tab === "Host" && <HostsAdministration />}
       {tab === "Pengguna" && <UsersAdministration />}
+      {tab === "Role & Hak Akses" && <RolesAdministration />}
       {tab === "Profil" && <ProfileAdministration />}
     </div>
   )

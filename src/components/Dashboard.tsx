@@ -680,7 +680,7 @@ function ExecutiveSummary() {
 }
 
 export default function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const { capabilities } = useAccess()
+  const { can } = useAccess()
   const { error } = useSynraStore()
   const kpiCards = useKpiCards()
 
@@ -713,7 +713,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: string) =
         ))}
       </div>
 
-      {capabilities.executiveSummary && <ExecutiveSummary />}
+      {can("dashboard.executive") && <ExecutiveSummary />}
       <UtilizationChart />
       <InsightPanel onNavigate={onNavigate} />
       <AssetDistribution />

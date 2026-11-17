@@ -366,9 +366,9 @@ export default function LifecyclePage({
   const { read, actions, helpers, api } = useSynraStore()
   const limits = api.expiryThresholds
   const { can } = useAccess()
-  // Mengajukan: ADMIN, SUPERVISOR, OPERATOR. Kelola item dan memutuskan: ADMIN, SUPERVISOR.
-  const canRequest = can("edit")
-  const canManage = can("approve")
+  // Mengajukan: hak lifecycle.request. Kelola item dan memutuskan: hak lifecycle.manage.
+  const canRequest = can("lifecycle.request")
+  const canManage = can("lifecycle.manage")
   const lifecycle = read("lifecycle")
   const requests = read("requests")
   const lifecycleType = typeMap[name]
@@ -588,7 +588,7 @@ export default function LifecyclePage({
         <GlassCard className="flex min-w-0 flex-col gap-4 border-warning/30 p-5 md:p-6">
           <CardHeading
             title="Pengajuan Menunggu Persetujuan"
-            description={canManage ? "Setujui dengan tanggal berakhir baru atau tolak" : "Menunggu keputusan Supervisor/Administrator"}
+            description={canManage ? "Setujui dengan tanggal berakhir baru atau tolak" : "Menunggu keputusan pemegang hak Kelola lifecycle"}
           />
           <div className="flex flex-col gap-2">
             {pending.map((request) => (

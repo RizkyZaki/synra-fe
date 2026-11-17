@@ -301,8 +301,8 @@ function AssetFormDrawer({
 function AssetDetail({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
   const { read } = useSynraStore()
   const { can } = useAccess()
-  // Aset boleh ditulis ADMIN dan SUPERVISOR, sama dengan pemegang hak approve.
-  const canEdit = can("approve")
+  // Aset boleh ditulis role dengan hak assets.manage (dibatasi juga di backend).
+  const canEdit = can("assets.manage")
   const history = read("alerts").filter((alert) => alert.hostname === asset.name)
 
   const meta: [string, ReactNode][] = [
@@ -421,8 +421,8 @@ export default function AssetInventory({
 }) {
   const { read, actions, api, error } = useSynraStore()
   const { can } = useAccess()
-  // Menambah/mengubah aset dibatasi untuk ADMIN dan SUPERVISOR di backend.
-  const canEdit = can("approve")
+  // Menambah/mengubah aset butuh hak assets.manage (dibatasi juga di backend).
+  const canEdit = can("assets.manage")
   const assets = read("assets")
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("Semua")
