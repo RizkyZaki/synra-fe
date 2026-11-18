@@ -69,13 +69,9 @@ export default function LoginPage({ onSuccess }: { onSuccess: (user: SessionUser
         <Logo className="block w-28" />
 
         <div className="max-w-xl">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            <span className="size-1.5 animate-pulse-ring rounded-full bg-primary" aria-hidden="true" />
-            Network Operations Center
-          </span>
           <h2 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
             <TextGenerate
-              words="Pantau infrastruktur bank sebelum masalah terjadi."
+              words="Pantau infrastruktur asset"
               wordClassName="bg-gradient-to-b from-foreground to-foreground/60 bg-clip-text pb-1 text-transparent"
             />
           </h2>
@@ -101,7 +97,7 @@ export default function LoginPage({ onSuccess }: { onSuccess: (user: SessionUser
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground/70">© {new Date().getFullYear()} SYNRA · Infrastructure Intelligence</p>
+        <p className="text-xs text-muted-foreground/70">© {new Date().getFullYear()} SYNRA </p>
       </section>
 
       {/* Panel kanan: formulir */}
