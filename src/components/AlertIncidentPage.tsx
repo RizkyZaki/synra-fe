@@ -110,9 +110,21 @@ function WorkflowForm({
           setError("Catatan wajib diisi.")
           return
         }
-        if (requireEvidence && !evidence.trim() && attachmentCount === 0) {
-          setError("Isi ringkasan bukti atau unggah minimal satu lampiran di panel Bukti Remediasi.")
-          return
+        if (requireEvidence) {
+          const hasEvidence = !!evidence.trim();
+          const hasFiles = (attachmentCount ?? 0) > 0;
+          if (!hasEvidence && !hasFiles) {
+            setError("Ringkasan bukti dan minimal satu file lampiran bukti remediasi wajib diisi.");
+            return;
+          }
+          if (!hasEvidence) {
+            setError("Ringkasan bukti wajib diisi.");
+            return;
+          }
+          if (!hasFiles) {
+            setError("Unggah minimal satu file lampiran di panel Bukti Remediasi.");
+            return;
+          }
         }
         setError("")
         void onSubmit(note.trim(), evidence.trim())
@@ -122,7 +134,7 @@ function WorkflowForm({
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} placeholder="Tuliskan catatan penanganan" />
       </FormField>
       {requireEvidence && (
-        <FormField label={attachmentCount ? `Ringkasan bukti (opsional, ${attachmentCount} lampiran)` : "Ringkasan bukti"}>
+        <FormField label={attachmentCount ? `Ringkasan bukti (wajib, ${attachmentCount} lampiran terlampir)` : "Ringkasan bukti (wajib)"}>
           <Textarea
             value={evidence}
             onChange={(event) => setEvidence(event.target.value)}
@@ -401,6 +413,10 @@ export default function AlertIncidentPage({
               onUploaded={(count) => {
                 reloadDetail()
                 setToast(`${count} lampiran diunggah`)
+              }}
+              onDeleted={() => {
+                reloadDetail()
+                setToast("Lampiran berhasil dihapus")
               }}
             />
           )}

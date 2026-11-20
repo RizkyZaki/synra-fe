@@ -1,4 +1,4 @@
-import { FileImage, FileText, ShieldCheck, Upload } from "lucide-react"
+import { FileImage, FileText, Plus, ShieldCheck, Upload } from "lucide-react"
 import { useRef, useState } from "react"
 import { ApiError, apiFetch, apiOpenFile } from "../lib/api"
 import { type AlertAttachmentDto, formatBytes, formatDateTime } from "../lib/backend"
@@ -18,16 +18,21 @@ export function AlertEvidence({
   alertApiId,
   attachments,
   canUpload,
+  canDelete = canUpload,
   onUploaded,
+  onDeleted,
 }: {
   alertApiId: string
   attachments: AlertAttachmentDto[]
   canUpload: boolean
+  canDelete?: boolean
   onUploaded: (count: number) => void
+  onDeleted?: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
   const upload = async (list: FileList | File[]) => {
@@ -54,6 +59,23 @@ export function AlertEvidence({
     }
   }
 
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!window.confirm("Yakin ingin menghapus lampiran ini?")) return
+
+    setDeletingId(attachmentId)
+    setError("")
+    try {
+      await apiFetch(`/alerts/${alertApiId}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      })
+      onDeleted?.()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Gagal menghapus lampiran")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const open = (a: AlertAttachmentDto) => {
     const inline = a.mimeType.startsWith("image/") || a.mimeType === "application/pdf"
     apiOpenFile(`/alerts/${alertApiId}/attachments/${a.id}`, a.fileName, inline).catch((e) =>
@@ -61,15 +83,60 @@ export function AlertEvidence({
     )
   }
 
+  const hasAttachments = attachments.length > 0
+  const canAddMore = canUpload && attachments.length < MAX_FILES
+
   return (
-    <GlassCard className="min-w-0 p-5 md:p-6">
-      <CardHeading
-        title="Bukti Remediasi"
-        description={attachments.length ? `${attachments.length} lampiran` : "Screenshot, log, atau dokumen hasil perbaikan"}
-        className="mb-4"
+    <GlassCard
+      className={cn("min-w-0 p-5 md:p-6 transition-colors", dragging && "ring-2 ring-primary/40 bg-primary/[0.02]")}
+      onDragOver={(e) => {
+        if (!canAddMore) return
+        e.preventDefault()
+        setDragging(true)
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        if (!canAddMore) return
+        e.preventDefault()
+        setDragging(false)
+        if (!busy) void upload(e.dataTransfer.files)
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept={ACCEPT}
+        className="hidden"
+        onChange={(e) => e.target.files && void upload(e.target.files)}
       />
 
-      {canUpload && (
+      <CardHeading
+        title="Bukti Remediasi"
+        description={
+          hasAttachments
+            ? `${attachments.length} lampiran${attachments.length >= MAX_FILES ? " (maksimal tercapai)" : ""}`
+            : "Screenshot, log, atau dokumen hasil perbaikan"
+        }
+        className="mb-4"
+        actions={
+          hasAttachments && canAddMore ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+              className="gap-1.5"
+            >
+              <Plus size={14} aria-hidden="true" />
+              {busy ? "Mengunggah…" : "Tambah File"}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {canUpload && !hasAttachments && (
         <div
           role="button"
           tabIndex={0}
@@ -96,14 +163,12 @@ export function AlertEvidence({
           <Upload size={20} className="text-primary" aria-hidden="true" />
           <p className="text-sm font-medium">{busy ? "Mengunggah…" : "Tarik file ke sini atau klik untuk memilih"}</p>
           <p className="type-meta">PNG, JPG, WEBP, PDF, TXT, LOG, CSV · maks. 10 MB per file · 5 file sekali unggah</p>
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept={ACCEPT}
-            className="hidden"
-            onChange={(e) => e.target.files && void upload(e.target.files)}
-          />
+        </div>
+      )}
+
+      {hasAttachments && dragging && (
+        <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary bg-primary/10 px-4 py-4 text-sm text-primary">
+          <Upload size={18} aria-hidden="true" /> Lepaskan file di sini untuk mengunggah
         </div>
       )}
 
@@ -141,6 +206,17 @@ export function AlertEvidence({
                 <Button size="sm" variant="ghost" onClick={() => open(a)}>
                   Buka
                 </Button>
+                {canDelete && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-danger hover:bg-danger/10 hover:text-danger"
+                    disabled={deletingId === a.id}
+                    onClick={() => handleDeleteAttachment(a.id)}
+                  >
+                    {deletingId === a.id ? "Menghapus…" : "Hapus"}
+                  </Button>
+                )}
               </li>
             )
           })}
