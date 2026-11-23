@@ -216,7 +216,8 @@ export default function AlertIncidentPage({
   onSelectedIdChange: (id: string | null) => void
 }) {
   const { read, actions, error } = useSynraStore()
-  const { can } = useAccess()
+  const { can, user } = useAccess()
+  const isAdmin = user.roleCode === "ADMIN"
   const canEdit = can("alerts.handle")
   const canApprove = can("alerts.review")
   const canConfig = can("alerts.evaluate")
@@ -410,6 +411,7 @@ export default function AlertIncidentPage({
               alertApiId={selected.apiId}
               attachments={attachments}
               canUpload={canEdit && selected.status !== "Ditutup"}
+              canDelete={isAdmin && selected.status !== "Ditutup"}
               onUploaded={(count) => {
                 reloadDetail()
                 setToast(`${count} lampiran diunggah`)
